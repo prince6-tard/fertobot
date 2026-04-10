@@ -83,9 +83,7 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // ============= CORS MIDDLEWARE =============
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production'
-    ? (process.env.CORS_ORIGIN || '*').split(',')
-    : '*',
+  origin: true, // reflect request origin — works with credentials on all domains
   credentials: true,
   optionsSuccessStatus: 200
 }));

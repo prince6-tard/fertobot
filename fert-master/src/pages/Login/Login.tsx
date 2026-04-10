@@ -6,7 +6,7 @@ import {
 } from '@mui/material';
 import { Visibility, VisibilityOff } from '@mui/icons-material';
 
-const API_URL = import.meta.env.VITE_API_URL || '';
+const API_URL = import.meta.env.VITE_API_URL || 'https://fertobot-production.up.railway.app';
 
 export default function Login() {
   const navigate = useNavigate();
