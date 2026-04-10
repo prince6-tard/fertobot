@@ -31,7 +31,7 @@ export default function Login() {
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.message || 'Login failed');
+        setError(data.message || `Server error ${res.status}`);
         return;
       }
 
