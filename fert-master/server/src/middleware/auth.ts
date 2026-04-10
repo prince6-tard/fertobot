@@ -27,7 +27,7 @@ export const authenticate = (
       return;
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret') as any;
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-super-secret-jwt-key') as any;
     req.user = decoded;
     next();
   } catch (error) {
