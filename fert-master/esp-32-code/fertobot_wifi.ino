@@ -8,8 +8,8 @@
 #include <ArduinoJson.h>
 
 // ── CONFIG — edit these before flashing ──────────────────
-const char* WIFI_SSID     = "YOUR_WIFI_SSID";
-const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";
+const char* WIFI_SSID     = "lol123";
+const char* WIFI_PASSWORD = "12345678";
 
 // Backend URL — replace with your Railway/Render URL after deployment
 // For local testing use your PC's IP: http://192.168.x.x:3001
