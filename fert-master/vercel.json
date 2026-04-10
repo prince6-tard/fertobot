@@ -29,6 +29,7 @@
     }
   ],
   "rewrites": [
+    { "source": "/api/:path*", "destination": "https://fertobot-production.up.railway.app/api/:path*" },
     { "source": "/((?!assets|manifest\\.json|sw\\.js|favicon\\.ico|api).*)", "destination": "/index.html" }
   ]
 }
