@@ -1,0 +1,136 @@
+version: '3.8'
+
+services:
+  # MongoDB Database
+  mongodb:
+    image: mongo:7.0
+    container_name: fertobot-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER:-fertobot}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-fertobot123}
+      MONGO_INITDB_DATABASE: fertobot
+    volumes:
+      - mongodb_data:/data/db
+      - mongodb_config:/data/configdb
+    networks:
+      - fertobot-network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok'
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend API Server
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    container_name: fertobot-api
+    restart: unless-stopped
+    ports:
+      - "${API_PORT:-3001}:3001"
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3001
+      MONGODB_URI: mongodb://${MONGO_USER:-fertobot}:${MONGO_PASSWORD:-fertobot123}@mongodb:27017/fertobot
+      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key}
+      JWT_EXPIRE: ${JWT_EXPIRE:-7d}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      LOG_DIR: /app/logs
+      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
+      WEATHER_API_KEY: ${WEATHER_API_KEY:-}
+      MQTT_BROKER_URL: ${MQTT_BROKER_URL:-mqtt://mqtt:1883}
+      MQTT_USERNAME: ${MQTT_USERNAME:-}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      mqtt:
+        condition: service_started
+    volumes:
+      - api_logs:/app/logs
+    networks:
+      - fertobot-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Frontend Application
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fertobot-web
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-80}:80"
+    environment:
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:3001}
+    depends_on:
+      - api
+    networks:
+      - fertobot-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # MQTT Broker (for IoT device communication)
+  mqtt:
+    image: eclipse-mosquitto:latest
+    container_name: fertobot-mqtt
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - mqtt_data:/mosquitto/data
+      - mqtt_logs:/mosquitto/log
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    networks:
+      - fertobot-network
+
+  # Redis Cache (optional, for caching and sessions)
+  redis:
+    image: redis:7-alpine
+    container_name: fertobot-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - fertobot-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  mongodb_data:
+    driver: local
+  mongodb_config:
+    driver: local
+  mqtt_data:
+    driver: local
+  mqtt_logs:
+    driver: local
+  redis_data:
+    driver: local
+  api_logs:
+    driver: local
+
+networks:
+  fertobot-network:
+    driver: bridge

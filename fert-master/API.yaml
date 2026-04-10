@@ -1,0 +1,277 @@
+name: FertoBot
+version: 1.0.0
+description: Smart Agriculture Monitoring System - Production Ready
+
+servers:
+  - url: http://localhost:3001
+    description: Development server
+  - url: https://api.fertobot.com
+    description: Production server
+
+paths:
+  /api/health:
+    get:
+      summary: Health check
+      tags: [Health]
+      responses:
+        '200':
+          description: Server is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: OK
+                  timestamp:
+                    type: string
+                    format: date-time
+                  uptime:
+                    type: number
+                  environment:
+                    type: string
+
+  /api/auth/register:
+    post:
+      summary: Register new user
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+                - firstName
+                - lastName
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  minLength: 6
+                firstName:
+                  type: string
+                lastName:
+                  type: string
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  token:
+                    type: string
+                  data:
+                    type: object
+
+  /api/auth/login:
+    post:
+      summary: Login user
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  token:
+                    type: string
+
+  /api/sensors/latest/{probeId}:
+    get:
+      summary: Get latest sensor reading
+      tags: [Sensors]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: probeId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Latest sensor reading
+        '404':
+          description: No readings found
+
+  /api/probes:
+    get:
+      summary: List all probes
+      tags: [Probes]
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of probes
+    post:
+      summary: Create new probe
+      tags: [Probes]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - uuid
+                - name
+                - serialNumber
+                - location
+              properties:
+                uuid:
+                  type: string
+                name:
+                  type: string
+                serialNumber:
+                  type: string
+                location:
+                  type: object
+                  properties:
+                    fieldName:
+                      type: string
+                    latitude:
+                      type: number
+                    longitude:
+                      type: number
+
+  /api/users/profile:
+    get:
+      summary: Get user profile
+      tags: [Users]
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: User profile
+    put:
+      summary: Update user profile
+      tags: [Users]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                firstName:
+                  type: string
+                lastName:
+                  type: string
+                phone:
+                  type: string
+                preferences:
+                  type: object
+      responses:
+        '200':
+          description: Profile updated
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    SensorReading:
+      type: object
+      properties:
+        probeId:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        soilMoisture:
+          type: number
+          minimum: 0
+          maximum: 100
+        temperature:
+          type: number
+        humidity:
+          type: number
+          minimum: 0
+          maximum: 100
+        pH:
+          type: number
+          minimum: 0
+          maximum: 14
+        nitrogen:
+          type: number
+        phosphorus:
+          type: number
+        potassium:
+          type: number
+
+    Probe:
+      type: object
+      properties:
+        _id:
+          type: string
+        uuid:
+          type: string
+        name:
+          type: string
+        status:
+          type: string
+          enum: [online, offline, maintenance, error]
+        location:
+          type: object
+        battery:
+          type: object
+          properties:
+            level:
+              type: number
+            lastUpdated:
+              type: string
+              format: date-time
+
+tags:
+  - name: Health
+    description: Service health checks
+  - name: Auth
+    description: Authentication endpoints
+  - name: Sensors
+    description: Sensor data endpoints
+  - name: Probes
+    description: Probe management endpoints
+  - name: Users
+    description: User management endpoints
+  - name: Alerts
+    description: Alert management
+  - name: Weather
+    description: Weather data
+  - name: Irrigation
+    description: Irrigation control

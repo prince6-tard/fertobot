@@ -1,0 +1,258 @@
+/* Global styles for professional tablet/mobile experience */
+html {
+  -webkit-text-size-adjust: 100%;
+  -ms-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  overscroll-behavior: none;
+}
+
+body {
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -khtml-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+  margin: 0;
+  padding: 0;
+}
+
+#root {
+  width: 100%;
+  min-height: 100vh;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Allow text selection only for input elements */
+input, textarea, [contenteditable="true"] {
+  -webkit-user-select: text;
+  -khtml-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  user-select: text;
+}
+
+/* Prevent double-tap zoom */
+a, button, [role="button"] {
+  touch-action: manipulation;
+}
+
+/* Remove default tap highlighting */
+* {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-focus-ring-color: transparent;
+  outline: none;
+}
+
+/* Improve scrolling performance */
+.scroll-container {
+  -webkit-overflow-scrolling: touch;
+  overflow-scrolling: touch;
+}
+
+/* Prevent pull-to-refresh */
+body {
+  overscroll-behavior-y: none;
+}
+
+/* Better button and interactive element sizing for touch */
+button, [role="button"] {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Prevent zooming on input focus on iOS */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+textarea {
+  font-size: 16px !important;
+}
+
+/* Optimize button rendering without heavy transitions */
+button, .MuiButton-root {
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+/* Ensure bottom navigation stays fixed to viewport */
+.MuiPaper-root[style*="position: fixed"] {
+  position: fixed !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  z-index: 1100 !important;
+}
+
+/* Force bottom navigation to stick to viewport bottom */
+.MuiBottomNavigation-root {
+  position: fixed !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  z-index: 1100 !important;
+}
+
+/* Prevent content from covering fixed navigation */
+[role="main"] {
+  padding-bottom: 80px !important;
+  min-height: calc(100vh - 80px) !important;
+}
+
+/* Dashboard specific responsive fixes */
+.MuiGrid-container {
+  max-width: 100% !important;
+  margin: 0 !important;
+  width: 100% !important;
+}
+
+.MuiGrid-item {
+  max-width: 100% !important;
+}
+
+/* Prevent horizontal overflow on dashboard */
+html {
+  overflow-x: hidden !important;
+  height: 100% !important;
+}
+
+body {
+  overflow-x: hidden !important;
+  min-height: 100vh !important;
+}
+
+#root {
+  width: 100% !important;
+  max-width: 100vw !important;
+  min-height: 100vh !important;
+  overflow-x: hidden !important;
+}
+
+/* Ensure viewport-fixed positioning works */
+* {
+  box-sizing: border-box;
+}
+
+/* Make sure the bottom navigation is always visible */
+.MuiPaper-root:has(.MuiBottomNavigation-root) {
+  position: fixed !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  z-index: 9999 !important;
+}
+
+/* Debug: Ensure content is visible on tablets */
+body, #root {
+  min-height: 100vh !important;
+  background-color: #fafafa !important;
+}
+
+/* Ensure main content is visible */
+main, [role="main"] {
+  min-height: calc(100vh - 80px) !important;
+  background-color: transparent !important;
+}
+
+/* Font family overrides */
+body, #root {
+  font-family: "Inter", "Poppins", -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+}
+
+h1, h2, h3, h4, h5, h6, .MuiTypography-h1, .MuiTypography-h2, .MuiTypography-h3, .MuiTypography-h4, .MuiTypography-h5, .MuiTypography-h6 {
+  font-family: "Poppins", "Inter", sans-serif !important;
+}
+
+.MuiButton-root, .MuiTab-root, .MuiChip-root, .MuiBottomNavigationAction-label {
+  font-family: "Inter", "Poppins", sans-serif !important;
+}
+
+/* Tablet-optimized styles for recommendations and cards */
+@media (min-width: 768px) and (max-width: 1024px) {
+  body {
+    background-color: #fafafa !important;
+  }
+  
+  #root {
+    background-color: transparent !important;
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+  
+  /* Ensure all content is visible on tablets */
+  * {
+    visibility: visible !important;
+    display: block;
+  }
+  
+  /* Specific fixes for MUI components */
+  .MuiBox-root {
+    display: flex !important;
+  }
+  
+  /* Optimized card spacing for tablets */
+  .MuiCard-root {
+    margin-bottom: 16px !important;
+  }
+  
+  /* Better touch targets for tablets */
+  .MuiButton-root {
+    min-height: 48px !important;
+    min-width: 64px !important;
+    padding: 12px 24px !important;
+  }
+  
+  .MuiIconButton-root {
+    min-height: 48px !important;
+    min-width: 48px !important;
+  }
+  
+  /* Improved chip interactions */
+  .MuiChip-root {
+    min-height: 40px !important;
+    padding: 8px 16px !important;
+    font-size: 0.875rem !important;
+  }
+  
+  /* Better spacing for tablet layouts */
+  .MuiCardContent-root {
+    padding: 24px !important;
+  }
+  
+  /* Enhanced typography for tablet readability */
+  .MuiTypography-h5 {
+    font-size: 1.5rem !important;
+    line-height: 1.4 !important;
+  }
+  
+  .MuiTypography-h6 {
+    font-size: 1.25rem !important;
+    line-height: 1.4 !important;
+  }
+  
+  .MuiTypography-body1 {
+    font-size: 1rem !important;
+    line-height: 1.6 !important;
+  }
+}
+
+/* Large tablet and small desktop optimizations */
+@media (min-width: 1025px) and (max-width: 1280px) {
+  /* Ensure proper grid layouts */
+  .MuiGrid-container {
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  
+  /* Better card layouts for larger tablets */
+  .MuiCard-root {
+    max-width: none;
+    margin-bottom: 20px;
+  }
+}

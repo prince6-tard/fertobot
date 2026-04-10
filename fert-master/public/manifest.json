@@ -1,0 +1,79 @@
+{
+  "name": "FertoBot - Smart Agriculture Monitor",
+  "short_name": "FertoBot",
+  "description": "Smart agriculture monitoring system with IoT sensors for optimal crop management",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1976d2",
+  "theme_color": "#1976d2",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "lang": "en-US",
+  "categories": ["productivity", "utilities", "business"],
+  "screenshots": [
+    {
+      "src": "/images/screenshot-wide.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "FertoBot Dashboard"
+    },
+    {
+      "src": "/images/screenshot-narrow.png",
+      "sizes": "750x1334",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "FertoBot Mobile"
+    }
+  ],
+  "icons": [
+    {
+      "src": "/images/32-2.ico",
+      "sizes": "32x32",
+      "type": "image/x-icon",
+      "purpose": "any"
+    },
+    {
+      "src": "/images/fertobot-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/images/512 (1).ico",
+      "sizes": "512x512",
+      "type": "image/x-icon",
+      "purpose": "maskable any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "description": "View farm overview and live data",
+      "url": "/dashboard",
+      "icons": [{ "src": "/images/fertobot-icon.svg", "sizes": "any" }]
+    },
+    {
+      "name": "Irrigation Control",
+      "short_name": "Irrigation",
+      "description": "Manage irrigation zones",
+      "url": "/sprinkler",
+      "icons": [{ "src": "/images/fertobot-icon.svg", "sizes": "any" }]
+    },
+    {
+      "name": "Security Cameras",
+      "short_name": "Security",
+      "description": "Monitor security cameras",
+      "url": "/security",
+      "icons": [{ "src": "/images/fertobot-icon.svg", "sizes": "any" }]
+    },
+    {
+      "name": "Probes",
+      "short_name": "Probes",
+      "description": "Manage sensor probes",
+      "url": "/probes",
+      "icons": [{ "src": "/images/fertobot-icon.svg", "sizes": "any" }]
+    }
+  ]
+}

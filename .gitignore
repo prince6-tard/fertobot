@@ -1,0 +1,10 @@
+node_modules/
+fert-master/node_modules/
+fert-master/server/node_modules/
+dist/
+fert-master/dist/
+.env
+fert-master/.env
+fert-master/server/.env
+*.log
+fert-master/server/logs/

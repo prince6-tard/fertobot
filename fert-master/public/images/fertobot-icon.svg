@@ -1,0 +1,30 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background Circle -->
+  <circle cx="256" cy="256" r="256" fill="#1976d2"/>
+  
+  <!-- Inner Circle -->
+  <circle cx="256" cy="256" r="200" fill="#ffffff" opacity="0.1"/>
+  
+  <!-- Plant/Leaf Icon -->
+  <path d="M256 120C200 120 160 160 160 200C160 240 180 280 220 300L256 320L292 300C332 280 352 240 352 200C352 160 312 120 256 120Z" fill="#4caf50"/>
+  
+  <!-- Sensor/IoT Device -->
+  <rect x="226" y="300" width="60" height="40" rx="8" fill="#ffffff"/>
+  <rect x="236" y="310" width="40" height="20" rx="4" fill="#1976d2"/>
+  
+  <!-- Water Drops -->
+  <circle cx="200" cy="180" r="12" fill="#03a9f4"/>
+  <circle cx="312" cy="180" r="12" fill="#03a9f4"/>
+  <circle cx="256" cy="160" r="8" fill="#03a9f4"/>
+  
+  <!-- Signal/Connection Lines -->
+  <path d="M256 340L256 380M236 360L276 360M220 340L292 340" stroke="#4caf50" stroke-width="4" stroke-linecap="round"/>
+  
+  <!-- Tech Circles -->
+  <circle cx="180" cy="350" r="6" fill="#ffffff"/>
+  <circle cx="332" cy="350" r="6" fill="#ffffff"/>
+  <circle cx="256" cy="400" r="8" fill="#4caf50"/>
+  
+  <!-- Brand Text (Optional - may be too small) -->
+  <text x="256" y="450" text-anchor="middle" fill="#ffffff" font-family="Arial, sans-serif" font-size="24" font-weight="bold">FB</text>
+</svg>
