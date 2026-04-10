@@ -1,0 +1,8 @@
+[build]
+builder = "nixpacks"
+buildCommand = "cd fert-master/server && npm install && npm run build"
+
+[deploy]
+startCommand = "node fert-master/server/dist/index.js"
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
