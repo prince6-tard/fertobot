@@ -13,7 +13,7 @@ const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";
 
 // Backend URL — replace with your Railway/Render URL after deployment
 // For local testing use your PC's IP: http://192.168.x.x:3001
-const char* SERVER_URL    = "https://YOUR-BACKEND.railway.app/api/device/reading";
+const char* SERVER_URL    = "https://fertobot-production.up.railway.app/api/device/reading";
 
 const char* DEVICE_API_KEY = "fertobot-esp32-key-2024"; // must match server DEVICE_API_KEY env var
 const char* PROBE_UUID     = "FBOT-1001";                // must match probe UUID in DB
