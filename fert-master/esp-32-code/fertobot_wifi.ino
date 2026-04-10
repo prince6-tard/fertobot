@@ -1,25 +1,49 @@
 /* =========================================================
-   FertoBot ESP32 — WiFi + HTTP Data Uploader
-   Reads NPK/soil sensor via RS485, posts to FertoBot API.
+   FertoBot ESP32 — WiFi + HTTP Data Uploader  (v2 — merged)
+   Changes from v1:
+     • FreeRTOS multi-task architecture (6 tasks, same as MQTT build)
+     • Mutex-protected DeviceState struct (g_stateMutex / g_rs485Mutex)
+     • Relay auto-off safety timer (taskActuatorSafety)
+     • Buzzer timer handled in dedicated task (taskMotionBuzzer)
+     • Build-time FW_DEVICE_ID / PROBE_UUID via compiler defines
+     • Continuous WiFi reconnect task (taskConnectivity)
+     • RS485 bus guard uses semaphore instead of volatile bool
+     • Telemetry payload includes relayOn + motionDetected fields
+     • HTTP command polling (GET /api/device/command) for relay/buzzer control
    ========================================================= */
 
+#include <Arduino.h>
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 
-// ── CONFIG — edit these before flashing ──────────────────
-const char* WIFI_SSID     = "lol123";
-const char* WIFI_PASSWORD = "12345678";
+/* =========================================================
+   -------------------- BUILD-TIME DEFINES -----------------
+   Override via -D flags in platformio.ini or build_flags.
+   ========================================================= */
+#ifndef FW_DEVICE_ID
+#define FW_DEVICE_ID "FBOT-1001"
+#endif
 
-// Backend URL — replace with your Railway/Render URL after deployment
-// For local testing use your PC's IP: http://192.168.x.x:3001
-const char* SERVER_URL    = "https://fertobot-production.up.railway.app/api/device/reading";
+#ifndef WIFI_SSID
+#define WIFI_SSID "Hackathon-2025"
+#endif
 
-const char* DEVICE_API_KEY = "fertobot-esp32-key-2024"; // must match server DEVICE_API_KEY env var
-const char* PROBE_UUID     = "FBOT-1001";                // must match probe UUID in DB
-// ─────────────────────────────────────────────────────────
+#ifndef WIFI_PASSWORD
+#define WIFI_PASSWORD "20252025"
+#endif
 
-// ── PIN DEFINITIONS ──────────────────────────────────────
+#ifndef SERVER_BASE_URL
+#define SERVER_BASE_URL "https://fertobot-production.up.railway.app"
+#endif
+
+#ifndef DEVICE_API_KEY
+#define DEVICE_API_KEY "fertobot-esp32-key-2024"
+#endif
+
+/* =========================================================
+   -------------------- PIN DEFINITIONS --------------------
+   ========================================================= */
 #define RELAY_CONTROL 26
 #define RXD2          16
 #define TXD2          17
@@ -30,14 +54,15 @@ const char* PROBE_UUID     = "FBOT-1001";                // must match probe UUI
 
 HardwareSerial RS485(2);
 
-// ── GLOBALS ───────────────────────────────────────────────
-volatile bool rs485Busy  = false;
-bool buzzerOn            = false;
-unsigned long buzzerOffTime = 0;
+/* =========================================================
+   -------------------- FREERTOS PRIMITIVES ----------------
+   ========================================================= */
+SemaphoreHandle_t g_stateMutex  = nullptr;
+SemaphoreHandle_t g_rs485Mutex  = nullptr;
 
-unsigned long lastUpload = 0;
-const unsigned long UPLOAD_INTERVAL = 30000; // POST every 30 seconds
-
+/* =========================================================
+   -------------------- SENSOR / DEVICE STATE --------------
+   ========================================================= */
 struct NPK_Data {
   float    temperature;
   float    moisture;
@@ -46,30 +71,38 @@ struct NPK_Data {
   uint16_t nitrogen;
   uint16_t phosphorus;
   uint16_t potassium;
-  bool     valid = false;
 };
 
-NPK_Data latestReading;
+struct DeviceState {
+  NPK_Data    npk;
+  int         waterRaw;
+  const char *waterLevel;
+  bool        motionDetected;
+  bool        relayOn;
+  bool        buzzerOn;
+  uint32_t    lastNpkMs;
+  uint32_t    lastWaterMs;
+  uint32_t    lastMotionMs;
+  int8_t      wifiRssi;
+};
 
-// ── WIFI ──────────────────────────────────────────────────
-void connectWifi() {
-  Serial.printf("Connecting to WiFi: %s\n", WIFI_SSID);
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  int attempts = 0;
-  while (WiFi.status() != WL_CONNECTED && attempts < 20) {
-    delay(500);
-    Serial.print(".");
-    attempts++;
-  }
-  if (WiFi.status() == WL_CONNECTED) {
-    Serial.printf("\nWiFi connected. IP: %s\n", WiFi.localIP().toString().c_str());
-  } else {
-    Serial.println("\nWiFi failed — will retry in loop");
-  }
-}
+DeviceState g_state = {
+  {0, 0, 0, 0, 0, 0, 0},
+  0, "UNKNOWN",
+  false, false, false,
+  0, 0, 0,
+  -127
+};
 
-// ── MODBUS CRC ────────────────────────────────────────────
-uint16_t modbusCRC(uint8_t* buf, uint16_t len) {
+/* Actuator timers (checked in taskActuatorSafety) */
+volatile uint32_t g_relayAutoOffTime = 0;
+volatile bool     g_buzzerOn         = false;
+volatile uint32_t g_buzzerOffTime    = 0;
+
+/* =========================================================
+   -------------------- UTILITIES --------------------------
+   ========================================================= */
+uint16_t modbusCRC(uint8_t *buf, uint16_t len) {
   uint16_t crc = 0xFFFF;
   for (uint16_t pos = 0; pos < len; pos++) {
     crc ^= (uint16_t)buf[pos];
@@ -81,6 +114,23 @@ uint16_t modbusCRC(uint8_t* buf, uint16_t len) {
   return crc;
 }
 
+const char *waterLevelFromRaw(int raw) {
+  if (raw < 400)  return "DRY";
+  if (raw < 1200) return "LOW";
+  if (raw < 2500) return "MEDIUM";
+  return "HIGH";
+}
+
+int waterLevelToPercent(const char *level) {
+  if (strcmp(level, "HIGH")   == 0) return 100;
+  if (strcmp(level, "MEDIUM") == 0) return 65;
+  if (strcmp(level, "LOW")    == 0) return 30;
+  return 5;
+}
+
+/* =========================================================
+   -------------------- RS485 / MODBUS / NPK ---------------
+   ========================================================= */
 void sendReadRequest(uint8_t slaveID, uint16_t startAddr, uint16_t quantity) {
   uint8_t frame[8];
   frame[0] = slaveID;
@@ -101,177 +151,377 @@ void sendReadRequest(uint8_t slaveID, uint16_t startAddr, uint16_t quantity) {
   digitalWrite(RS485_EN, LOW);
 }
 
-bool decodeNPKFrame(uint8_t* rx, uint16_t len, uint16_t startReg, NPK_Data& data) {
+bool decodeNPKFrame(uint8_t *rx, uint16_t len, uint16_t startReg, NPK_Data &data) {
   if (len < 7 || rx[1] != 0x03) return false;
   uint8_t byteCount = rx[2];
   if (byteCount + 5 != len) return false;
-  uint8_t* payload  = &rx[3];
+  uint8_t *payload  = &rx[3];
   uint8_t  regCount = byteCount / 2;
 
   for (uint8_t i = 0; i < regCount; i++) {
     uint16_t value = (payload[i * 2] << 8) | payload[i * 2 + 1];
     switch (startReg + i) {
-      case 0x0000: data.temperature  = value / 10.0; break;
-      case 0x0001: data.moisture     = value / 10.0; break;
-      case 0x0002: data.conductivity = value;        break;
-      case 0x0003: data.ph           = value / 100.0;break;
-      case 0x0004: data.nitrogen     = value;        break;
-      case 0x0005: data.phosphorus   = value;        break;
-      case 0x0006: data.potassium    = value;        break;
+      case 0x0000: data.temperature  = value / 10.0f;  break;
+      case 0x0001: data.moisture     = value / 10.0f;  break;
+      case 0x0002: data.conductivity = value;           break;
+      case 0x0003: data.ph           = value / 100.0f; break;
+      case 0x0004: data.nitrogen     = value;           break;
+      case 0x0005: data.phosphorus   = value;           break;
+      case 0x0006: data.potassium    = value;           break;
+      default: break;
     }
   }
   return true;
 }
 
-// ── READ NPK SENSOR ───────────────────────────────────────
-void readNPKSensor() {
-  static unsigned long lastRead = 0;
-  if (millis() - lastRead < 3000) return;
-  lastRead = millis();
+bool readNPKSensor(NPK_Data &sensor) {
+  /* --- acquire RS485 bus semaphore (was: volatile bool rs485Busy) --- */
+  if (xSemaphoreTake(g_rs485Mutex, pdMS_TO_TICKS(1500)) != pdTRUE) {
+    Serial.println("RS485 lock timeout");
+    return false;
+  }
 
-  rs485Busy = true;
-  uint8_t rxBuf[64];
-  uint16_t rxLen = 0;
-  NPK_Data sensor = {0};
+  uint8_t  rxBuf[64] = {0};
+  uint16_t rxLen     = 0;
 
   sendReadRequest(2, 0x0000, 7);
 
-  unsigned long start = millis();
+  uint32_t start = millis();
   while (millis() - start < 1000) {
-    if (RS485.available()) rxBuf[rxLen++] = RS485.read();
+    while (RS485.available()) {
+      if (rxLen < sizeof(rxBuf)) rxBuf[rxLen++] = RS485.read();
+      else RS485.read();
+    }
+    vTaskDelay(pdMS_TO_TICKS(2));
   }
-  rs485Busy = false;
 
-  if (rxLen == 0) { Serial.println("No response from NPK sensor"); return; }
+  xSemaphoreGive(g_rs485Mutex);
+
+  if (rxLen == 0) { Serial.println("No response from NPK sensor"); return false; }
 
   uint16_t crcRx   = rxBuf[rxLen - 2] | (rxBuf[rxLen - 1] << 8);
   uint16_t crcCalc = modbusCRC(rxBuf, rxLen - 2);
-  if (crcRx != crcCalc) { Serial.println("CRC ERROR"); return; }
+  if (crcRx != crcCalc) { Serial.println("CRC ERROR"); return false; }
 
-  if (decodeNPKFrame(rxBuf, rxLen, 0x0000, sensor)) {
-    latestReading           = sensor;
-    latestReading.valid     = true;
+  if (!decodeNPKFrame(rxBuf, rxLen, 0x0000, sensor)) {
+    Serial.println("Invalid Modbus payload");
+    return false;
+  }
+  return true;
+}
 
-    Serial.println("------ NPK SENSOR DATA ------");
-    Serial.printf("Temperature : %.1f °C\n",    latestReading.temperature);
-    Serial.printf("Moisture    : %.1f %%\n",    latestReading.moisture);
-    Serial.printf("EC          : %d uS/cm\n",   latestReading.conductivity);
-    Serial.printf("pH          : %.2f\n",        latestReading.ph);
-    Serial.printf("Nitrogen    : %d mg/kg\n",   latestReading.nitrogen);
-    Serial.printf("Phosphorus  : %d mg/kg\n",   latestReading.phosphorus);
-    Serial.printf("Potassium   : %d mg/kg\n",   latestReading.potassium);
-    Serial.println("-----------------------------");
+/* =========================================================
+   -------------------- WIFI -------------------------------
+   ========================================================= */
+void ensureWifiConnected() {
+  if (WiFi.status() == WL_CONNECTED) return;
+
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+
+  uint32_t start = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - start < 12000) {
+    vTaskDelay(pdMS_TO_TICKS(300));
+  }
+
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.printf("WiFi connected. IP: %s\n", WiFi.localIP().toString().c_str());
+  } else {
+    Serial.println("WiFi connect timeout");
   }
 }
 
-// ── READ WATER LEVEL ──────────────────────────────────────
-float readWaterLevelPercent() {
-  if (rs485Busy) return 0;
-  int raw = analogRead(WATER_PIN);
-  // Map raw ADC (0-4095) to percentage
-  if (raw < 400)  return 10.0;
-  if (raw < 1200) return 30.0;
-  if (raw < 2500) return 65.0;
-  return 90.0;
-}
+/* =========================================================
+   -------------------- HTTP HELPERS -----------------------
+   ========================================================= */
 
-// ── HTTP POST TO BACKEND ──────────────────────────────────
+/* POST sensor reading to /api/device/reading */
 void uploadReading() {
-  if (!latestReading.valid) {
-    Serial.println("No valid reading yet — skipping upload");
-    return;
-  }
-  if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("WiFi disconnected — reconnecting...");
-    connectWifi();
-    return;
-  }
+  if (WiFi.status() != WL_CONNECTED) return;
 
-  float waterLevel  = readWaterLevelPercent();
-  int   battery     = 85; // TODO: read actual battery if you have ADC circuit
-  int   signal      = WiFi.RSSI();
-  // Map RSSI (-100 to -30 dBm) to 0-100%
-  int   signalPct   = constrain(map(signal, -100, -30, 0, 100), 0, 100);
+  DeviceState snapshot;
+  if (xSemaphoreTake(g_stateMutex, pdMS_TO_TICKS(100)) != pdTRUE) return;
+  snapshot = g_state;
+  xSemaphoreGive(g_stateMutex);
 
-  // Build JSON
+  int signalPct = constrain(map(snapshot.wifiRssi, -100, -30, 0, 100), 0, 100);
+
   StaticJsonDocument<512> doc;
-  doc["probeUuid"]     = PROBE_UUID;
-  doc["soilMoisture"]  = latestReading.moisture;
-  doc["temperature"]   = latestReading.temperature;
-  doc["humidity"]      = 60; // placeholder — add DHT22 if available
-  doc["pH"]            = latestReading.ph;
-  doc["conductivity"]  = latestReading.conductivity;
-  doc["nitrogen"]      = latestReading.nitrogen;
-  doc["phosphorus"]    = latestReading.phosphorus;
-  doc["potassium"]     = latestReading.potassium;
-  doc["waterTankLevel"]= waterLevel;
-  doc["batteryLevel"]  = battery;
-  doc["signalStrength"]= signalPct;
+  doc["probeUuid"]      = FW_DEVICE_ID;
+  doc["soilMoisture"]   = snapshot.npk.moisture;
+  doc["temperature"]    = snapshot.npk.temperature;
+  doc["humidity"]       = 0;           /* add DHT22 here if available */
+  doc["pH"]             = snapshot.npk.ph;
+  doc["conductivity"]   = snapshot.npk.conductivity;
+  doc["nitrogen"]       = snapshot.npk.nitrogen;
+  doc["phosphorus"]     = snapshot.npk.phosphorus;
+  doc["potassium"]      = snapshot.npk.potassium;
+  doc["waterRaw"]       = snapshot.waterRaw;
+  doc["waterLevel"]     = snapshot.waterLevel;
+  doc["waterTankLevel"] = waterLevelToPercent(snapshot.waterLevel);
+  doc["batteryLevel"]   = 100;         /* TODO: real ADC reading */
+  doc["signalStrength"] = signalPct;
+  doc["relayOn"]        = snapshot.relayOn;       /* NEW — from MQTT version */
+  doc["motionDetected"] = snapshot.motionDetected; /* NEW — from MQTT version */
 
   String body;
   serializeJson(doc, body);
 
   HTTPClient http;
-  http.begin(SERVER_URL);
+  http.begin(String(SERVER_BASE_URL) + "/api/device/reading");
   http.addHeader("Content-Type", "application/json");
   http.addHeader("x-api-key", DEVICE_API_KEY);
   http.setTimeout(10000);
 
-  int httpCode = http.POST(body);
-
-  if (httpCode == 201) {
+  int code = http.POST(body);
+  if (code == 201) {
     Serial.println("Upload OK");
   } else {
-    Serial.printf("Upload failed: HTTP %d\n", httpCode);
+    Serial.printf("Upload failed: HTTP %d\n", code);
     Serial.println(http.getString());
   }
   http.end();
 }
 
-// ── MOTION + BUZZER ───────────────────────────────────────
-void handleMotionAndBuzzer() {
-  if (rs485Busy) return;
-  static int lastMotion = LOW;
-  int motion = digitalRead(PIR_PIN);
-  if (motion == HIGH && lastMotion == LOW) {
-    Serial.println("Motion detected!");
-    digitalWrite(BUZZER_PIN, HIGH);
-    buzzerOn = true;
-    buzzerOffTime = millis() + 1000;
+/*
+ * NEW — poll the backend for pending commands.
+ * Replaces the MQTT inbound control channel with a simple HTTP GET.
+ * The server should return 200 with a JSON body (or 204 if no command):
+ *   { "relay": "on"|"off", "pump": true|false,
+ *     "durationMs": 5000, "buzzerMs": 1000 }
+ */
+void pollCommands() {
+  if (WiFi.status() != WL_CONNECTED) return;
+
+  HTTPClient http;
+  http.begin(String(SERVER_BASE_URL) + "/api/device/command?probeUuid=" + FW_DEVICE_ID);
+  http.addHeader("x-api-key", DEVICE_API_KEY);
+  http.setTimeout(8000);
+
+  int code = http.GET();
+  if (code == 200) {
+    String payload = http.getString();
+    StaticJsonDocument<256> doc;
+    if (deserializeJson(doc, payload) == DeserializationError::Ok) {
+      /* ---- relay / pump ---- */
+      if (doc["relay"].is<const char *>()) {
+        bool on = strcasecmp(doc["relay"].as<const char *>(), "on") == 0;
+        digitalWrite(RELAY_CONTROL, on ? HIGH : LOW);
+        if (xSemaphoreTake(g_stateMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+          g_state.relayOn = on;
+          xSemaphoreGive(g_stateMutex);
+        }
+      }
+      if (doc["pump"].is<bool>()) {
+        bool on = doc["pump"].as<bool>();
+        digitalWrite(RELAY_CONTROL, on ? HIGH : LOW);
+        if (xSemaphoreTake(g_stateMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+          g_state.relayOn = on;
+          xSemaphoreGive(g_stateMutex);
+        }
+      }
+      /* ---- auto-off timer (from MQTT version) ---- */
+      if (doc["durationMs"].is<uint32_t>()) {
+        uint32_t dur = doc["durationMs"].as<uint32_t>();
+        if (dur > 0) g_relayAutoOffTime = millis() + dur;
+      }
+      /* ---- buzzer (from MQTT version) ---- */
+      if (doc["buzzerMs"].is<uint32_t>()) {
+        uint32_t bms = doc["buzzerMs"].as<uint32_t>();
+        if (bms > 0) {
+          digitalWrite(BUZZER_PIN, HIGH);
+          g_buzzerOn      = true;
+          g_buzzerOffTime = millis() + bms;
+          if (xSemaphoreTake(g_stateMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+            g_state.buzzerOn = true;
+            xSemaphoreGive(g_stateMutex);
+          }
+        }
+      }
+    }
   }
-  lastMotion = motion;
-  if (buzzerOn && millis() > buzzerOffTime) {
-    digitalWrite(BUZZER_PIN, LOW);
-    buzzerOn = false;
+  /* 204 = no pending command — do nothing */
+  http.end();
+}
+
+/* =========================================================
+   -------------------- FREERTOS TASKS --------------------
+   (new in v2 — replaces sequential loop())
+   ========================================================= */
+
+/* --- NPK sensor: reads every 3 s --- */
+void taskNPK(void *pvParameters) {
+  (void)pvParameters;
+  for (;;) {
+    NPK_Data sensor = {0, 0, 0, 0, 0, 0, 0};
+    if (readNPKSensor(sensor)) {
+      if (xSemaphoreTake(g_stateMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+        g_state.npk      = sensor;
+        g_state.lastNpkMs = millis();
+        xSemaphoreGive(g_stateMutex);
+      }
+      Serial.println("------ NPK SENSOR DATA ------");
+      Serial.printf("Temperature : %.1f C\n",   sensor.temperature);
+      Serial.printf("Moisture    : %.1f %%\n",  sensor.moisture);
+      Serial.printf("EC          : %u uS/cm\n", sensor.conductivity);
+      Serial.printf("pH          : %.2f\n",      sensor.ph);
+      Serial.printf("Nitrogen    : %u mg/kg\n", sensor.nitrogen);
+      Serial.printf("Phosphorus  : %u mg/kg\n", sensor.phosphorus);
+      Serial.printf("Potassium   : %u mg/kg\n", sensor.potassium);
+      Serial.println("-----------------------------");
+    }
+    vTaskDelay(pdMS_TO_TICKS(3000));
   }
 }
 
-// ── SETUP ─────────────────────────────────────────────────
+/* --- Water level: reads every 1 s --- */
+void taskWater(void *pvParameters) {
+  (void)pvParameters;
+  for (;;) {
+    int         raw   = analogRead(WATER_PIN);
+    const char *level = waterLevelFromRaw(raw);
+
+    if (xSemaphoreTake(g_stateMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+      g_state.waterRaw   = raw;
+      g_state.waterLevel = level;
+      g_state.lastWaterMs = millis();
+      xSemaphoreGive(g_stateMutex);
+    }
+    Serial.printf("Water: %s (%d)\n", level, raw);
+    vTaskDelay(pdMS_TO_TICKS(1000));
+  }
+}
+
+/* --- PIR + buzzer: polls every 25 ms --- */
+void taskMotionBuzzer(void *pvParameters) {
+  (void)pvParameters;
+  int lastMotion = LOW;
+
+  for (;;) {
+    int motion = digitalRead(PIR_PIN);
+
+    if (motion == HIGH && lastMotion == LOW) {
+      Serial.println("Motion detected!");
+      digitalWrite(BUZZER_PIN, HIGH);
+      g_buzzerOn      = true;
+      g_buzzerOffTime = millis() + 1000;
+
+      if (xSemaphoreTake(g_stateMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+        g_state.motionDetected = true;
+        g_state.lastMotionMs   = millis();
+        g_state.buzzerOn       = true;
+        xSemaphoreGive(g_stateMutex);
+      }
+    } else if (motion == LOW) {
+      if (xSemaphoreTake(g_stateMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+        g_state.motionDetected = false;
+        xSemaphoreGive(g_stateMutex);
+      }
+    }
+    lastMotion = motion;
+
+    /* turn buzzer off when timer expires */
+    if (g_buzzerOn && ((int32_t)(millis() - g_buzzerOffTime) >= 0)) {
+      digitalWrite(BUZZER_PIN, LOW);
+      g_buzzerOn = false;
+      if (xSemaphoreTake(g_stateMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+        g_state.buzzerOn = false;
+        xSemaphoreGive(g_stateMutex);
+      }
+    }
+    vTaskDelay(pdMS_TO_TICKS(25));
+  }
+}
+
+/* --- WiFi keepalive: runs every 100 ms --- */
+void taskConnectivity(void *pvParameters) {
+  (void)pvParameters;
+  for (;;) {
+    ensureWifiConnected();
+    if (xSemaphoreTake(g_stateMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+      g_state.wifiRssi = (WiFi.status() == WL_CONNECTED) ? WiFi.RSSI() : -127;
+      xSemaphoreGive(g_stateMutex);
+    }
+    vTaskDelay(pdMS_TO_TICKS(100));
+  }
+}
+
+/* --- Telemetry upload every 30 s + command poll every 10 s --- */
+void taskTelemetry(void *pvParameters) {
+  (void)pvParameters;
+  uint32_t lastUpload  = 0;
+  uint32_t lastCmdPoll = 0;
+
+  for (;;) {
+    uint32_t now = millis();
+
+    if (now - lastUpload >= 30000) {
+      lastUpload = now;
+      uploadReading();
+    }
+    if (now - lastCmdPoll >= 10000) {
+      lastCmdPoll = now;
+      pollCommands();   /* replaces MQTT subscribe for relay/buzzer commands */
+    }
+    vTaskDelay(pdMS_TO_TICKS(500));
+  }
+}
+
+/*
+ * NEW — Actuator safety task (ported from MQTT version).
+ * Enforces relay auto-off after durationMs set by pollCommands().
+ */
+void taskActuatorSafety(void *pvParameters) {
+  (void)pvParameters;
+  for (;;) {
+    if (g_relayAutoOffTime > 0 && (int32_t)(millis() - g_relayAutoOffTime) >= 0) {
+      g_relayAutoOffTime = 0;
+      digitalWrite(RELAY_CONTROL, LOW);
+      if (xSemaphoreTake(g_stateMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+        g_state.relayOn = false;
+        xSemaphoreGive(g_stateMutex);
+      }
+      Serial.println("Relay auto-off executed");
+    }
+    vTaskDelay(pdMS_TO_TICKS(50));
+  }
+}
+
+/* =========================================================
+   -------------------- SETUP ------------------------------
+   ========================================================= */
 void setup() {
   Serial.begin(115200);
+  delay(200);
 
   pinMode(RELAY_CONTROL, OUTPUT); digitalWrite(RELAY_CONTROL, LOW);
-  pinMode(PIR_PIN, INPUT_PULLDOWN);
-  pinMode(BUZZER_PIN, OUTPUT);    digitalWrite(BUZZER_PIN, LOW);
-  pinMode(WATER_PIN, INPUT);
+  pinMode(PIR_PIN,        INPUT_PULLDOWN);
+  pinMode(BUZZER_PIN,     OUTPUT); digitalWrite(BUZZER_PIN, LOW);
+  pinMode(WATER_PIN,      INPUT);
   analogSetWidth(12);
   analogSetAttenuation(ADC_11db);
-  pinMode(RS485_EN, OUTPUT);      digitalWrite(RS485_EN, LOW);
+  pinMode(RS485_EN, OUTPUT); digitalWrite(RS485_EN, LOW);
 
   RS485.begin(9600, SERIAL_8N1, RXD2, TXD2);
 
-  connectWifi();
-  Serial.println("FertoBot ESP32 Ready");
+  /* Create FreeRTOS synchronisation primitives */
+  g_stateMutex = xSemaphoreCreateMutex();
+  g_rs485Mutex = xSemaphoreCreateMutex();
+
+  Serial.printf("FertoBot HTTP v2 — device: %s\n", FW_DEVICE_ID);
+
+  /* Pin all tasks to core 1 (same as MQTT version) */
+  xTaskCreatePinnedToCore(taskConnectivity,  "taskConn",   6144, nullptr, 4, nullptr, 1);
+  xTaskCreatePinnedToCore(taskNPK,           "taskNPK",    6144, nullptr, 3, nullptr, 1);
+  xTaskCreatePinnedToCore(taskWater,         "taskWater",  4096, nullptr, 2, nullptr, 1);
+  xTaskCreatePinnedToCore(taskMotionBuzzer,  "taskMotion", 4096, nullptr, 2, nullptr, 1);
+  xTaskCreatePinnedToCore(taskTelemetry,     "taskTelem",  6144, nullptr, 1, nullptr, 1);
+  xTaskCreatePinnedToCore(taskActuatorSafety,"taskSafety", 3072, nullptr, 2, nullptr, 1);
 }
 
-// ── LOOP ──────────────────────────────────────────────────
+/* =========================================================
+   -------------------- LOOP (idle) ------------------------
+   ========================================================= */
 void loop() {
-  readNPKSensor();
-  handleMotionAndBuzzer();
-
-  // Upload every UPLOAD_INTERVAL ms
-  if (millis() - lastUpload >= UPLOAD_INTERVAL) {
-    lastUpload = millis();
-    uploadReading();
-  }
+  vTaskDelay(pdMS_TO_TICKS(1000));
 }

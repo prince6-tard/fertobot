@@ -101,6 +101,39 @@ router.post('/reading', deviceAuth, async (req: Request, res: Response, next: Ne
   }
 });
 
+/**
+ * GET /api/device/command?probeUuid=FBOT-1001
+ * Polled by ESP32 every 10 s to fetch pending relay/buzzer commands.
+ * Returns 204 when no command is queued.
+ */
+router.get('/command', deviceAuth, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { probeUuid } = req.query;
+    if (!probeUuid) {
+      res.status(400).json({ success: false, message: 'Missing probeUuid' });
+      return;
+    }
+
+    const probe = await Probe.findOne({ uuid: probeUuid as string });
+    if (!probe) {
+      res.status(404).json({ success: false, message: `Probe not found: ${probeUuid}` });
+      return;
+    }
+
+    const command = probe.metadata?.pendingCommand;
+    if (!command) {
+      res.status(204).end();
+      return;
+    }
+
+    // Clear the command after delivering it
+    await Probe.findByIdAndUpdate(probe._id, { $unset: { 'metadata.pendingCommand': 1 } });
+    res.status(200).json(command);
+  } catch (error) {
+    next(error);
+  }
+});
+
 // GET /api/device/ping  — ESP32 connectivity check
 router.get('/ping', (_req: Request, res: Response) => {
   res.json({ success: true, message: 'pong', timestamp: new Date() });

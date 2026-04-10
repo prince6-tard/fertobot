@@ -160,7 +160,7 @@ async function seed() {
       const timestamp = new Date(now.getTime() - i * INTERVAL_MS);
       const hourOfDay = timestamp.getHours();
       // Simulate realistic diurnal variation
-      const tempBase = probe.name.includes('Greenhouse') ? 28 : 22;
+      const tempBase = (probe.name || '').includes('Greenhouse') ? 28 : 22;
       const tempSwing = hourOfDay >= 10 && hourOfDay <= 16 ? rand(3, 6) : 0;
 
       readings.push({
