@@ -11,6 +11,13 @@ import SprinklerControl from './pages/SprinklerControl/SprinklerControl';
 import SecurityCamera from './pages/SecurityCamera/SecurityCamera';
 import Profile from './pages/Profile/Profile';
 import VoiceChatbot from './pages/VoiceChatbot/VoiceChatbot';
+import Login from './pages/Login/Login';
+
+const isAuthenticated = () => !!localStorage.getItem('token');
+
+function PrivateRoute({ children }: { children: React.ReactElement }) {
+  return isAuthenticated() ? children : <Navigate to="/login" replace />;
+}
 
 function App() {
   const [updateAvailable, setUpdateAvailable] = useState(false);
@@ -100,25 +107,28 @@ function App() {
         onUpdate={handleUpdate}
         onClose={handleCloseUpdate}
       />
-      <Layout>
-        <Routes>
-          {/* Main Dashboard */}
-          <Route path="/dashboard" element={<Dashboard />} />
-          {/* Probe Management */}
-          <Route path="/probes" element={<ProbeManagement />} />
-          <Route path="/probes/:probeId" element={<ProbeDetail />} />
-          {/* Irrigation & Sprinkler Control */}
-          <Route path="/irrigation" element={<SprinklerControl />} />
-          {/* Security & Camera */}
-          <Route path="/security" element={<SecurityCamera />} />
-          {/* Voice Chatbot */}
-          <Route path="/voice-chatbot" element={<VoiceChatbot />} />
-          {/* User Profile */}
-          <Route path="/profile" element={<Profile />} />
-          {/* Default redirect */}
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        </Routes>
-      </Layout>
+      <Routes>
+        {/* Public */}
+        <Route path="/login" element={<Login />} />
+
+        {/* Protected */}
+        <Route path="/*" element={
+          <PrivateRoute>
+            <Layout>
+              <Routes>
+                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/probes" element={<ProbeManagement />} />
+                <Route path="/probes/:probeId" element={<ProbeDetail />} />
+                <Route path="/irrigation" element={<SprinklerControl />} />
+                <Route path="/security" element={<SecurityCamera />} />
+                <Route path="/voice-chatbot" element={<VoiceChatbot />} />
+                <Route path="/profile" element={<Profile />} />
+                <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              </Routes>
+            </Layout>
+          </PrivateRoute>
+        } />
+      </Routes>
     </Box>
   );
 }
