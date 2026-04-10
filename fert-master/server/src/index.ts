@@ -64,14 +64,16 @@ const apiLimiter = rateLimit({
 app.use(limiter);
 
 // ============= LOGGING MIDDLEWARE =============
-const accessLogStream = fs.createWriteStream(
-  path.join(process.env.LOG_DIR || './logs', 'access.log'),
-  { flags: 'a' }
-);
-
-app.use(morgan('combined', { stream: accessLogStream }));
 if (process.env.NODE_ENV !== 'production') {
   app.use(morgan('dev'));
+} else {
+  const logDir = process.env.LOG_DIR || './logs';
+  if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
+  const accessLogStream = fs.createWriteStream(
+    path.join(logDir, 'access.log'),
+    { flags: 'a' }
+  );
+  app.use(morgan('combined', { stream: accessLogStream }));
 }
 
 // ============= BODY PARSER MIDDLEWARE =============
@@ -81,8 +83,8 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // ============= CORS MIDDLEWARE =============
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production' 
-    ? ['https://fertobot.vercel.app', 'https://fertobot.com'] 
+  origin: process.env.NODE_ENV === 'production'
+    ? (process.env.CORS_ORIGIN || '*').split(',')
     : '*',
   credentials: true,
   optionsSuccessStatus: 200
