@@ -87,9 +87,11 @@ function App() {
     setUpdateAvailable(false);
   };
   return (
-    <Box sx={{ 
-      display: 'flex', 
+    <Box sx={{
+      display: 'flex',
+      flexDirection: 'column',
       minHeight: '100vh',
+      width: '100%',
       touchAction: 'pan-x pan-y',
       userSelect: 'none',
       WebkitTouchCallout: 'none',
@@ -122,6 +124,7 @@ function App() {
                 <Route path="/irrigation" element={<SprinklerControl />} />
                 <Route path="/security" element={<SecurityCamera />} />
                 <Route path="/voice-chatbot" element={<VoiceChatbot />} />
+                <Route path="/assistant" element={<VoiceChatbot />} />
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/" element={<Navigate to="/dashboard" replace />} />
               </Routes>

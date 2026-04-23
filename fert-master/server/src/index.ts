@@ -24,6 +24,7 @@ import cropDataRoutes from './routes/cropData.routes';
 import userRoutes from './routes/user.routes';
 import dashboardRoutes from './routes/dashboard.routes';
 import deviceRoutes from './routes/device.routes';
+import assistantRoutes from './routes/assistant.routes';
 
 // Import middleware
 import errorHandler from './middleware/errorHandler';
@@ -61,7 +62,9 @@ const apiLimiter = rateLimit({
   standardHeaders: true,
 });
 
-app.use(limiter);
+// Global limiter applied below only to non-device routes.
+// Device (ESP32) routes get their own higher limit to avoid
+// dropping IoT polls (6 polls/min + 2 telemetry/min = ~120 req/15 min).
 
 // ============= LOGGING MIDDLEWARE =============
 if (process.env.NODE_ENV !== 'production') {
@@ -99,9 +102,18 @@ app.get('/api/health', (_req: Request, res: Response) => {
 });
 
 // ============= PUBLIC ROUTES =============
-app.use('/api/auth', authRoutes);
-app.use('/api/dashboard', dashboardRoutes);
-app.use('/api/device', deviceRoutes); // ESP32 device endpoint (API key auth)
+app.use('/api/auth', limiter, authRoutes);
+app.use('/api/dashboard', limiter, dashboardRoutes);
+app.use('/api/assistant', limiter, assistantRoutes);
+
+// ESP32 device endpoints — higher rate limit so polling every 10 s never gets 429'd
+const deviceLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 2000, // ~120 req/15 min per device; headroom for multiple devices
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use('/api/device', deviceLimiter, deviceRoutes);
 
 // ============= PROTECTED ROUTES =============
 app.use('/api/sensors', apiLimiter, authenticate, sensorRoutes);
@@ -130,7 +142,11 @@ const server = app.listen(PORT, () => {
   logger.info(`🚀 FertoBot API Server running on port ${PORT}`);
   logger.info(`📝 Environment: ${process.env.NODE_ENV || 'development'}`);
   logger.info(`🔗 API Documentation: http://localhost:${PORT}/api/docs`);
-  startMqttService();
+  if (process.env.MQTT_BROKER_URL && !process.env.MQTT_BROKER_URL.includes('localhost')) {
+    startMqttService();
+  } else {
+    logger.info('MQTT disabled (no broker running locally)');
+  }
 });
 
 // ============= GRACEFUL SHUTDOWN =============

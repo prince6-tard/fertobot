@@ -1,8 +1,10 @@
 import { Router } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import Probe from '../models/Probe';
+import User from '../models/User';
 import { AppError } from '../middleware/errorHandler';
-import { publishProbeControl } from '../services/mqtt.service';
+import logger from '../config/logger';
+import { deliverCommand } from '../services/commandQueue';
 
 const router = Router();
 
@@ -39,11 +41,34 @@ router.post('/control', async (req: AuthRequest, res, next) => {
       throw new AppError('Either relay or pump command is required', 400);
     }
 
-    const probe = probeId
-      ? await Probe.findById(probeId)
-      : await Probe.findOne({ uuid: probeUuid });
+    // findById throws CastError on invalid ObjectIds — catch it and fall through to uuid lookup.
+    // Guard against undefined probeUuid: findOne({ uuid: undefined }) strips the key in Mongoose
+    // and becomes findOne({}) which returns a random probe.
+    let probe = probeId
+      ? await Probe.findById(probeId).catch(() => null) ?? (probeUuid ? await Probe.findOne({ uuid: probeUuid }) : null)
+      : probeUuid ? await Probe.findOne({ uuid: probeUuid }) : null;
+
+    // Auto-provision the probe if it doesn't exist yet (ESP32 may not have sent a reading yet)
+    if (!probe && probeUuid) {
+      const owner = await User.findOne({ isActive: true }).lean();
+      if (owner) {
+        probe = await Probe.create({
+          userId: owner._id,
+          uuid: probeUuid,
+          name: `ESP32 ${probeUuid}`,
+          serialNumber: probeUuid,
+          firmwareVersion: '2.0.0',
+          location: { fieldName: 'Field 1', latitude: 0, longitude: 0, areaSize: 0 },
+          isActive: true,
+        });
+        logger.info(`Auto-provisioned probe via irrigation control: ${probeUuid}`);
+      }
+    }
+
+    logger.info(`Irrigation command — probeId: ${probeId}, probeUuid: ${probeUuid}, probe resolved: ${probe?.uuid ?? 'none'}`);
+
     if (!probe || !probe.isActive) {
-      throw new AppError('Probe not found', 404);
+      throw new AppError('Probe not found or inactive', 404);
     }
 
     if (req.user?.id && probe.userId.toString() !== req.user.id) {
@@ -68,7 +93,12 @@ router.post('/control', async (req: AuthRequest, res, next) => {
       commandPayload.buzzerMs = buzzerMs;
     }
 
-    await publishProbeControl(probe.uuid, commandPayload);
+    // Deliver command via in-memory queue (no MongoDB) for instant local response.
+    // If the ESP32 is connected via long-poll it gets the command in <1ms.
+    // If not connected, it's queued and delivered when ESP32 next connects.
+    deliverCommand(probe.uuid, commandPayload);
+
+    logger.info(`Command stored for ESP32 ${probe.uuid}: ${JSON.stringify(commandPayload)}`);
 
     res.status(200).json({
       success: true,

@@ -44,6 +44,7 @@ import { colors } from '../../utils/theme';
 
 interface IrrigationZone {
   id: string;
+  uuid?: string; // probe UUID for ESP32 command delivery
   name: string;
   status: 'active' | 'inactive' | 'scheduled';
   duration: number; // minutes
@@ -89,12 +90,13 @@ const SprinklerControl: React.FC = () => {
   const [zones, setZones] = useState<IrrigationZone[]>([
     {
       id: 'zone-001',
+      uuid: 'FBOT-1001',        // fallback UUID so backend finds the right ESP32 probe
       name: 'newgen iedc field',
       status: 'inactive',
       duration: 30,
       flowRate: 0,
       lastRun: '2025-12-03T14:37:00',
-      moistureLevel: 78, // matching probe 001 last reading
+      moistureLevel: 78,
       progress: 0,
     },
   ]);
@@ -127,6 +129,7 @@ const SprinklerControl: React.FC = () => {
 
         const mappedZones: IrrigationZone[] = probes.map((probe) => ({
           id: probe._id,
+          uuid: probe.uuid,
           name: probe.name || probe.uuid,
           status: probe.status === 'online' ? 'inactive' : 'scheduled',
           duration: 30,
@@ -143,9 +146,11 @@ const SprinklerControl: React.FC = () => {
     };
 
     void loadZonesFromLiveProbes();
+    const interval = setInterval(() => void loadZonesFromLiveProbes(), 10000);
+    return () => clearInterval(interval);
   }, []);
 
-  const handleZoneToggle = async (zoneId: string, turnOn: boolean) => {
+  const handleZoneToggle = async (zoneId: string, turnOn: boolean, zoneUuid?: string) => {
     try {
       setIsSendingCommand(true);
       setCommandFeedback(null);
@@ -157,6 +162,7 @@ const SprinklerControl: React.FC = () => {
         },
         body: JSON.stringify({
           probeId: zoneId,
+          probeUuid: zoneUuid,   // fallback so backend can find by UUID if ObjectId lookup fails
           pump: turnOn,
           relay: turnOn ? 'on' : 'off',
           durationMs: turnOn ? 300000 : 0,
@@ -167,6 +173,11 @@ const SprinklerControl: React.FC = () => {
       if (!response.ok || !payload?.success) {
         throw new Error(payload?.message || 'Control command failed');
       }
+
+      // Update zone status locally so UI reflects the command immediately
+      setZones(prev => prev.map(z =>
+        z.id === zoneId ? { ...z, status: turnOn ? 'active' : 'inactive' } : z
+      ));
 
       setCommandFeedback({
         type: 'success',
@@ -271,10 +282,10 @@ const SprinklerControl: React.FC = () => {
           <Button
             variant="contained"
             startIcon={<PlayIcon sx={{ fontSize: 16 }} />}
-            onClick={() => handleZoneToggle(zone.id, true)}
+            onClick={() => handleZoneToggle(zone.id, true, zone.uuid)}
             disabled={isSendingCommand}
             fullWidth
-            sx={{ 
+            sx={{
               py: 1.5,
               fontSize: '0.875rem',
               textTransform: 'none',
@@ -287,7 +298,7 @@ const SprinklerControl: React.FC = () => {
           <Button
             variant="outlined"
             startIcon={<StopIcon sx={{ fontSize: 16 }} />}
-            onClick={() => handleZoneToggle(zone.id, false)}
+            onClick={() => handleZoneToggle(zone.id, false, zone.uuid)}
             disabled={isSendingCommand}
             fullWidth
             sx={{

@@ -286,7 +286,7 @@ const LiveCharts: React.FC<LiveChartsProps> = ({ readings }) => {
                   <XAxis dataKey="name" stroke={colors.neutral[600]} fontSize={12} />
                   <YAxis stroke={colors.neutral[600]} fontSize={12} />
                   <RechartsTooltip />
-                  <Bar dataKey="value" fill={colors.secondary[500]} name="Current Value" />
+                  <Bar dataKey="value" fill={colors.primary[500]} name="Current Value" />
                 </BarChart>
               </ResponsiveContainer>
             </Box>
