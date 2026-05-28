@@ -1,88 +1,88 @@
 import React from 'react';
-import { Typography, Box, Paper } from '@mui/material';
+import { Typography, Box, alpha } from '@mui/material';
+import {
+  CheckCircle as CheckIcon,
+  Warning as WarningIcon,
+  SignalWifi4Bar as WifiIcon,
+  SignalWifiOff as WifiOffIcon,
+} from '@mui/icons-material';
 import { Probe } from '../../types';
-import { colors } from '../../utils/theme';
 
 interface ConnectivityStatusProps {
   probes: Probe[];
 }
 
 const ConnectivityStatus: React.FC<ConnectivityStatusProps> = ({ probes }) => {
-  const onlineCount = probes.filter((probe) => probe.status === 'online').length;
+  const onlineCount = probes.filter((p) => p.status === 'online').length;
   const totalCount = probes.length;
-  const offlineCount = probes.filter((probe) => probe.status === 'offline').length;
-  const maintenanceCount = probes.filter((probe) => probe.status === 'maintenance').length;
-  const issuesCount = probes.filter((probe) => probe.status !== 'online').length;
-
+  const offlineCount = probes.filter((p) => p.status === 'offline').length;
+  const maintenanceCount = probes.filter((p) => p.status === 'maintenance').length;
+  const issuesCount = probes.filter((p) => p.status !== 'online').length;
   const criticalDevices = probes.filter(
-    (probe) => probe.status === 'offline' || probe.batteryLevel < 20 || probe.wifiStrength === 0
+    (p) => p.status === 'offline' || p.batteryLevel < 20 || p.wifiStrength === 0
   );
 
-  if (totalCount === 0) {
-    return (
-      <Box sx={{ width: '100%' }}>
-        <Paper elevation={0} sx={{ p: 3, border: '1px solid', borderColor: colors.neutral[200], borderRadius: 1 }}>
-          <Typography variant="body2" color="text.secondary">
-            No live probe data available.
-          </Typography>
-        </Paper>
-      </Box>
-    );
-  }
+  if (totalCount === 0) return null;
+
+  const allGood = issuesCount === 0;
+  const statusColor = allGood ? '#52D080' : '#FFB74D';
+  const StatusIcon = allGood ? CheckIcon : WarningIcon;
 
   return (
-    <Box sx={{ width: '100%' }}>
-      <Paper elevation={0} sx={{ p: 2, mb: 2, border: '1px solid', borderColor: colors.neutral[200], borderRadius: 1 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Box>
-            <Typography variant="body2" sx={{ fontWeight: 200, mb: 0.5 }}>
-              Live probe status
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              {onlineCount} online, {offlineCount} offline, {maintenanceCount} maintenance
-            </Typography>
-          </Box>
+    <Box
+      sx={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 1.5,
+        px: 2,
+        py: 1.25,
+        borderRadius: '12px',
+        border: `1px solid ${alpha(statusColor, 0.2)}`,
+        backgroundColor: alpha(statusColor, 0.06),
+      }}
+    >
+      <StatusIcon sx={{ fontSize: 16, color: statusColor, flexShrink: 0 }} />
 
-          <Typography
-            variant="h6"
-            sx={{ fontWeight: 200, color: onlineCount === totalCount ? colors.neutral[900] : colors.neutral[500] }}
-          >
-            {issuesCount === 0 ? 'Connected' : 'Attention needed'}
-          </Typography>
-        </Box>
-      </Paper>
+      <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+        <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: statusColor, fontFamily: '"Plus Jakarta Sans", sans-serif' }}>
+          {allGood ? 'All probes connected' : `${issuesCount} probe${issuesCount > 1 ? 's' : ''} need attention`}
+        </Typography>
+        <Typography sx={{ fontSize: '0.65rem', color: '#8FA89C', fontFamily: '"DM Mono", monospace' }}>
+          {onlineCount}/{totalCount} online
+          {offlineCount > 0 && ` · ${offlineCount} offline`}
+          {maintenanceCount > 0 && ` · ${maintenanceCount} maintenance`}
+        </Typography>
+      </Box>
 
-      {criticalDevices.length === 0 ? (
-        <Paper
-          elevation={0}
-          sx={{
-            p: 3,
-            textAlign: 'center',
-            border: '1px solid',
-            borderColor: colors.neutral[200],
-            borderRadius: 1,
-            backgroundColor: colors.neutral[25],
-          }}
-        >
-          <Typography variant="body2" color="text.secondary">
-            All devices are operating normally.
+      {/* Probe dots */}
+      <Box sx={{ display: 'flex', gap: 0.5, flexShrink: 0 }}>
+        {probes.slice(0, 6).map((probe) => {
+          const dotColor = probe.status === 'online' ? '#52D080' : probe.status === 'offline' ? '#EF5350' : '#FFB74D';
+          return (
+            <Box
+              key={probe.id}
+              title={`${probe.name}: ${probe.status}`}
+              sx={{
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                backgroundColor: dotColor,
+                boxShadow: `0 0 6px ${alpha(dotColor, 0.6)}`,
+              }}
+            />
+          );
+        })}
+        {probes.length > 6 && (
+          <Typography sx={{ fontSize: '0.6rem', color: '#8FA89C', fontFamily: '"DM Mono", monospace', alignSelf: 'center' }}>
+            +{probes.length - 6}
           </Typography>
-        </Paper>
+        )}
+      </Box>
+
+      {criticalDevices.length > 0 ? (
+        <WifiOffIcon sx={{ fontSize: 14, color: '#EF5350', flexShrink: 0 }} />
       ) : (
-        <Paper
-          elevation={0}
-          sx={{
-            p: 3,
-            border: '1px solid',
-            borderColor: colors.neutral[200],
-            borderRadius: 1,
-            backgroundColor: colors.neutral[25],
-          }}
-        >
-          <Typography variant="body2" color="text.secondary">
-            {criticalDevices.length} device(s) need attention.
-          </Typography>
-        </Paper>
+        <WifiIcon sx={{ fontSize: 14, color: alpha('#52D080', 0.6), flexShrink: 0 }} />
       )}
     </Box>
   );

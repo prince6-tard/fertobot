@@ -26,15 +26,15 @@
 #endif
 
 #ifndef WIFI_SSID
-#define WIFI_SSID "Hackathon-2025"
+#define WIFI_SSID "FertoBot"
 #endif
 
 #ifndef WIFI_PASSWORD
-#define WIFI_PASSWORD "20252025"
+#define WIFI_PASSWORD "fertobot123"
 #endif
 
 #ifndef SERVER_BASE_URL
-#define SERVER_BASE_URL "https://fertobot-production.up.railway.app"
+#define SERVER_BASE_URL "http://192.168.137.1:3001"
 #endif
 
 #ifndef DEVICE_API_KEY
@@ -44,7 +44,7 @@
 /* =========================================================
    -------------------- PIN DEFINITIONS --------------------
    ========================================================= */
-#define RELAY_CONTROL 26
+#define RELAY_CONTROL 27
 #define RXD2          16
 #define TXD2          17
 #define RS485_EN      23
@@ -276,6 +276,21 @@ void uploadReading() {
   int code = http.POST(body);
   if (code == 201) {
     Serial.println("Upload OK");
+    // Server may piggyback a relay/pump command in the response
+    // (fallback for when the long-poll is blocked by a firewall)
+    String resp = http.getString();
+    StaticJsonDocument<512> rdoc;
+    if (deserializeJson(rdoc, resp) == DeserializationError::Ok) {
+      if (!rdoc["data"]["command"].isNull()) {
+        Serial.println("Piggyback command received — executing");
+        String cmdStr;
+        serializeJson(rdoc["data"]["command"], cmdStr);
+        StaticJsonDocument<256> cmdDoc;
+        if (deserializeJson(cmdDoc, cmdStr) == DeserializationError::Ok) {
+          applyCommand(cmdDoc);
+        }
+      }
+    }
   } else {
     Serial.printf("Upload failed: HTTP %d\n", code);
     Serial.println(http.getString());
@@ -284,63 +299,73 @@ void uploadReading() {
 }
 
 /*
- * NEW — poll the backend for pending commands.
- * Replaces the MQTT inbound control channel with a simple HTTP GET.
- * The server should return 200 with a JSON body (or 204 if no command):
- *   { "relay": "on"|"off", "pump": true|false,
- *     "durationMs": 5000, "buzzerMs": 1000 }
+ * applyCommand — shared logic for acting on a received JSON command.
  */
-void pollCommands() {
+void applyCommand(StaticJsonDocument<256> &doc) {
+  if (doc["relay"].is<const char *>()) {
+    bool on = strcasecmp(doc["relay"].as<const char *>(), "on") == 0;
+    digitalWrite(RELAY_CONTROL, on ? HIGH : LOW);
+    Serial.printf("Relay -> %s\n", on ? "ON" : "OFF");
+    if (xSemaphoreTake(g_stateMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+      g_state.relayOn = on;
+      xSemaphoreGive(g_stateMutex);
+    }
+  }
+  if (doc["pump"].is<bool>()) {
+    bool on = doc["pump"].as<bool>();
+    digitalWrite(RELAY_CONTROL, on ? HIGH : LOW);
+    Serial.printf("Pump -> %s\n", on ? "ON" : "OFF");
+    if (xSemaphoreTake(g_stateMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+      g_state.relayOn = on;
+      xSemaphoreGive(g_stateMutex);
+    }
+  }
+  if (doc["durationMs"].is<uint32_t>()) {
+    uint32_t dur = doc["durationMs"].as<uint32_t>();
+    if (dur > 0) g_relayAutoOffTime = millis() + dur;
+  }
+  if (doc["buzzerMs"].is<uint32_t>()) {
+    uint32_t bms = doc["buzzerMs"].as<uint32_t>();
+    if (bms > 0) {
+      digitalWrite(BUZZER_PIN, HIGH);
+      g_buzzerOn      = true;
+      g_buzzerOffTime = millis() + bms;
+      if (xSemaphoreTake(g_stateMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+        g_state.buzzerOn = true;
+        xSemaphoreGive(g_stateMutex);
+      }
+    }
+  }
+}
+
+/*
+ * Long-poll: connect to /api/device/command/wait and block for up to 28 s.
+ * Server responds instantly when a command arrives, or sends 204 on timeout.
+ * On 204 we reconnect immediately — so the ESP32 is always listening.
+ * This replaces the old 10-second poll loop: relay now fires in <100 ms.
+ */
+void longPollCommand() {
   if (WiFi.status() != WL_CONNECTED) return;
 
   HTTPClient http;
-  http.begin(String(SERVER_BASE_URL) + "/api/device/command?probeUuid=" + FW_DEVICE_ID);
+  http.begin(String(SERVER_BASE_URL) + "/api/device/command/wait?probeUuid=" + FW_DEVICE_ID);
   http.addHeader("x-api-key", DEVICE_API_KEY);
-  http.setTimeout(8000);
+  http.setTimeout(28000); // server holds for 25 s, give 3 s margin
 
   int code = http.GET();
   if (code == 200) {
     String payload = http.getString();
+    Serial.printf("Command received: %s\n", payload.c_str());
     StaticJsonDocument<256> doc;
     if (deserializeJson(doc, payload) == DeserializationError::Ok) {
-      /* ---- relay / pump ---- */
-      if (doc["relay"].is<const char *>()) {
-        bool on = strcasecmp(doc["relay"].as<const char *>(), "on") == 0;
-        digitalWrite(RELAY_CONTROL, on ? HIGH : LOW);
-        if (xSemaphoreTake(g_stateMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
-          g_state.relayOn = on;
-          xSemaphoreGive(g_stateMutex);
-        }
-      }
-      if (doc["pump"].is<bool>()) {
-        bool on = doc["pump"].as<bool>();
-        digitalWrite(RELAY_CONTROL, on ? HIGH : LOW);
-        if (xSemaphoreTake(g_stateMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
-          g_state.relayOn = on;
-          xSemaphoreGive(g_stateMutex);
-        }
-      }
-      /* ---- auto-off timer (from MQTT version) ---- */
-      if (doc["durationMs"].is<uint32_t>()) {
-        uint32_t dur = doc["durationMs"].as<uint32_t>();
-        if (dur > 0) g_relayAutoOffTime = millis() + dur;
-      }
-      /* ---- buzzer (from MQTT version) ---- */
-      if (doc["buzzerMs"].is<uint32_t>()) {
-        uint32_t bms = doc["buzzerMs"].as<uint32_t>();
-        if (bms > 0) {
-          digitalWrite(BUZZER_PIN, HIGH);
-          g_buzzerOn      = true;
-          g_buzzerOffTime = millis() + bms;
-          if (xSemaphoreTake(g_stateMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
-            g_state.buzzerOn = true;
-            xSemaphoreGive(g_stateMutex);
-          }
-        }
-      }
+      applyCommand(doc);
     }
+  } else if (code == 204) {
+    /* timeout — no command this cycle, reconnect immediately */
+  } else {
+    Serial.printf("longPoll HTTP %d\n", code);
+    vTaskDelay(pdMS_TO_TICKS(2000)); // brief back-off on unexpected errors
   }
-  /* 204 = no pending command — do nothing */
   http.end();
 }
 
@@ -446,24 +471,32 @@ void taskConnectivity(void *pvParameters) {
   }
 }
 
-/* --- Telemetry upload every 30 s + command poll every 10 s --- */
+/* --- Telemetry upload every 30 s --- */
 void taskTelemetry(void *pvParameters) {
   (void)pvParameters;
-  uint32_t lastUpload  = 0;
-  uint32_t lastCmdPoll = 0;
+  uint32_t lastUpload = 0;
 
   for (;;) {
     uint32_t now = millis();
-
     if (now - lastUpload >= 30000) {
       lastUpload = now;
       uploadReading();
     }
-    if (now - lastCmdPoll >= 10000) {
-      lastCmdPoll = now;
-      pollCommands();   /* replaces MQTT subscribe for relay/buzzer commands */
-    }
     vTaskDelay(pdMS_TO_TICKS(500));
+  }
+}
+
+/*
+ * Dedicated command task — long-polls the server continuously.
+ * Reconnects immediately after each response (command or 25s timeout).
+ * Relay fires in <100 ms after button press.
+ */
+void taskCommands(void *pvParameters) {
+  (void)pvParameters;
+  vTaskDelay(pdMS_TO_TICKS(3000)); // wait for WiFi on boot
+  for (;;) {
+    longPollCommand();
+    vTaskDelay(pdMS_TO_TICKS(50)); // tiny gap between reconnects
   }
 }
 
@@ -515,7 +548,8 @@ void setup() {
   xTaskCreatePinnedToCore(taskNPK,           "taskNPK",    6144, nullptr, 3, nullptr, 1);
   xTaskCreatePinnedToCore(taskWater,         "taskWater",  4096, nullptr, 2, nullptr, 1);
   xTaskCreatePinnedToCore(taskMotionBuzzer,  "taskMotion", 4096, nullptr, 2, nullptr, 1);
-  xTaskCreatePinnedToCore(taskTelemetry,     "taskTelem",  6144, nullptr, 1, nullptr, 1);
+  xTaskCreatePinnedToCore(taskTelemetry,     "taskTelem",  8192, nullptr, 1, nullptr, 1);
+  xTaskCreatePinnedToCore(taskCommands,      "taskCmds",   8192, nullptr, 3, nullptr, 1);
   xTaskCreatePinnedToCore(taskActuatorSafety,"taskSafety", 3072, nullptr, 2, nullptr, 1);
 }
 

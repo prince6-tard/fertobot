@@ -3,12 +3,11 @@ html {
   -webkit-text-size-adjust: 100%;
   -ms-text-size-adjust: 100%;
   -webkit-tap-highlight-color: transparent;
-  touch-action: manipulation;
-  overscroll-behavior: none;
+  /* Do NOT set touch-action here — it blocks trackpad two-finger scroll on Windows */
 }
 
 body {
-  touch-action: manipulation;
+  /* touch-action left as default (auto) so trackpad/wheel scroll works on laptops */
   -webkit-touch-callout: none;
   -webkit-user-select: none;
   -khtml-user-select: none;
@@ -16,7 +15,8 @@ body {
   -ms-user-select: none;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
-  overscroll-behavior: none;
+  /* overscroll-behavior only on mobile to prevent pull-to-refresh */
+  overscroll-behavior-y: contain;
   margin: 0;
   padding: 0;
 }
@@ -89,19 +89,15 @@ button, .MuiButton-root {
   z-index: 1100 !important;
 }
 
-/* Force bottom navigation to stick to viewport bottom */
-.MuiBottomNavigation-root {
-  position: fixed !important;
-  bottom: 0 !important;
-  left: 0 !important;
-  right: 0 !important;
-  z-index: 1100 !important;
-}
-
-/* Prevent content from covering fixed navigation */
-[role="main"] {
-  padding-bottom: 80px !important;
-  min-height: calc(100vh - 80px) !important;
+/* Bottom navigation fixed only on mobile */
+@media (max-width: 899px) {
+  .MuiBottomNavigation-root {
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    z-index: 1100 !important;
+  }
 }
 
 /* Dashboard specific responsive fixes */
@@ -147,98 +143,45 @@ body {
   z-index: 9999 !important;
 }
 
-/* Debug: Ensure content is visible on tablets */
+/* Ensure content is visible */
 body, #root {
   min-height: 100vh !important;
-  background-color: #fafafa !important;
+  background-color: #060C08 !important;
 }
 
 /* Ensure main content is visible */
 main, [role="main"] {
-  min-height: calc(100vh - 80px) !important;
   background-color: transparent !important;
 }
 
-/* Font family overrides */
+/* Font family overrides — Plus Jakarta Sans */
 body, #root {
-  font-family: "Inter", "Poppins", -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+  font-family: "Figtree", -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
 h1, h2, h3, h4, h5, h6, .MuiTypography-h1, .MuiTypography-h2, .MuiTypography-h3, .MuiTypography-h4, .MuiTypography-h5, .MuiTypography-h6 {
-  font-family: "Poppins", "Inter", sans-serif !important;
+  font-family: "Syne", sans-serif !important;
 }
 
 .MuiButton-root, .MuiTab-root, .MuiChip-root, .MuiBottomNavigationAction-label {
-  font-family: "Inter", "Poppins", sans-serif !important;
+  font-family: "Figtree", sans-serif !important;
 }
 
-/* Tablet-optimized styles for recommendations and cards */
+/* Tablet-optimized styles */
 @media (min-width: 768px) and (max-width: 1024px) {
   body {
-    background-color: #fafafa !important;
+    background-color: #060C08 !important;
   }
-  
-  #root {
-    background-color: transparent !important;
-    display: block !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-  }
-  
-  /* Ensure all content is visible on tablets */
-  * {
-    visibility: visible !important;
-    display: block;
-  }
-  
-  /* Specific fixes for MUI components */
-  .MuiBox-root {
-    display: flex !important;
-  }
-  
-  /* Optimized card spacing for tablets */
-  .MuiCard-root {
-    margin-bottom: 16px !important;
-  }
-  
+
   /* Better touch targets for tablets */
   .MuiButton-root {
     min-height: 48px !important;
     min-width: 64px !important;
-    padding: 12px 24px !important;
   }
-  
+
   .MuiIconButton-root {
     min-height: 48px !important;
     min-width: 48px !important;
-  }
-  
-  /* Improved chip interactions */
-  .MuiChip-root {
-    min-height: 40px !important;
-    padding: 8px 16px !important;
-    font-size: 0.875rem !important;
-  }
-  
-  /* Better spacing for tablet layouts */
-  .MuiCardContent-root {
-    padding: 24px !important;
-  }
-  
-  /* Enhanced typography for tablet readability */
-  .MuiTypography-h5 {
-    font-size: 1.5rem !important;
-    line-height: 1.4 !important;
-  }
-  
-  .MuiTypography-h6 {
-    font-size: 1.25rem !important;
-    line-height: 1.4 !important;
-  }
-  
-  .MuiTypography-body1 {
-    font-size: 1rem !important;
-    line-height: 1.6 !important;
   }
 }
 

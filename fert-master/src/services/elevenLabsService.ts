@@ -1,5 +1,10 @@
 import { Conversation } from '@elevenlabs/client';
 
+export type VoiceMessage = {
+  source: 'user' | 'ai';
+  message: string;
+};
+
 export class ElevenLabsService {
     private conversation: any = null;
 
@@ -10,16 +15,30 @@ export class ElevenLabsService {
         onDisconnect: () => void,
         onError: (error: string) => void,
         onModeChange: (mode: { mode: 'speaking' | 'listening' }) => void,
+        onMessage: (msg: VoiceMessage) => void,
     ) {
         try {
             // Request microphone permission
             await navigator.mediaDevices.getUserMedia({ audio: true });
 
-            // Start the conversation
+            // Get a signed URL from the backend so the ElevenLabs API key
+            // never leaves the server.
+            let sessionOptions: Record<string, unknown>;
+            try {
+                const tokenRes = await fetch('/api/assistant/elevenlabs-token');
+                const tokenData = await tokenRes.json();
+                if (tokenRes.ok && tokenData?.signedUrl) {
+                    sessionOptions = { signedUrl: tokenData.signedUrl };
+                } else {
+                    console.warn('Could not get signed URL, falling back to agentId:', tokenData?.message);
+                    sessionOptions = { agentId: this.agentId };
+                }
+            } catch {
+                sessionOptions = { agentId: this.agentId };
+            }
+
             this.conversation = await Conversation.startSession({
-                agentId: this.agentId,
-                // @ts-ignore
-                connectionType: 'websocket', // Explicitly set connection type
+                ...sessionOptions,
                 onConnect: () => {
                     console.log('ElevenLabs Connected');
                     onConnect();
@@ -36,7 +55,11 @@ export class ElevenLabsService {
                     console.log('ElevenLabs Mode:', mode);
                     onModeChange(mode);
                 },
-            });
+                onMessage: (msg: VoiceMessage) => {
+                    console.log('ElevenLabs Message:', msg);
+                    onMessage(msg);
+                },
+            } as any);
         } catch (error) {
             console.error('Failed to start conversation:', error);
             onError(String(error));
