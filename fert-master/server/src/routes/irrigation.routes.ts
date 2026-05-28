@@ -77,12 +77,28 @@ router.post('/control', async (req: AuthRequest, res, next) => {
 
     const commandPayload: Record<string, unknown> = {};
 
+    // INVERSION FOR ACTIVE-LOW RELAY:
+    // User click "START" (on) -> We send LOW (off) to ESP32 -> Relay turns ON
+    // User click "STOP" (off) -> We send HIGH (on) to ESP32 -> Relay turns OFF
+
     if (relay !== undefined) {
-      commandPayload.relay = relay;
+      // Invert relay: 'on' becomes 'off', 'off' becomes 'on'
+      commandPayload.relay = relay === 'on' ? 'off' : 'on';
+      
+      // Keep pump boolean in sync with the inverted relay
+      if (pump === undefined) {
+        commandPayload.pump = (relay === 'off'); // if relay was 'off', pump becomes true (inverted)
+      }
     }
 
     if (pump !== undefined) {
-      commandPayload.pump = pump;
+      // Invert pump: true becomes false, false becomes true
+      commandPayload.pump = !pump;
+      
+      // Keep relay string in sync with the inverted pump
+      if (relay === undefined) {
+        commandPayload.relay = pump ? 'off' : 'on';
+      }
     }
 
     if (durationMs !== undefined) {

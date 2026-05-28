@@ -3,7 +3,7 @@ import SensorReading from '../models/SensorReading';
 import Probe from '../models/Probe';
 import User from '../models/User';
 import logger from '../config/logger';
-import { waitForCommand, consumeCommand } from '../services/commandQueue';
+import { waitForCommand, consumeCommand, getPendingCommand } from '../services/commandQueue';
 
 const router = Router();
 
@@ -23,8 +23,7 @@ const MAX_MOTION_EVENTS = 100;
 function recordMotion(device: string) {
   const ts = Date.now();
   // Debounce: ignore if same device fired within last 10 s
-  const last = motionEvents.findLast?.(e => e.device === device) ??
-    [...motionEvents].reverse().find(e => e.device === device);
+  const last = [...motionEvents].reverse().find((e: MotionEvent) => e.device === device);
   if (last && ts - last.timestamp < 10_000) return;
 
   const event: MotionEvent = {
@@ -209,17 +208,22 @@ router.get('/command', deviceAuth, async (req: Request, res: Response, next: Nex
       return;
     }
 
-    const command = probe.metadata?.pendingCommand;
+    // Check in-memory queue first (same as long-poll/telemetry)
+    const command = consumeCommand(probeUuid as string) || probe.metadata?.pendingCommand;
     if (!command) {
       res.status(204).end();
       return;
     }
 
-    logger.info(`Command delivered to ESP32 ${probeUuid}: ${JSON.stringify(command)}`);
+    logger.info(`Command delivered to ESP32 ${probeUuid} (short-poll): ${JSON.stringify(command)}`);
     res.status(200).json(command);
-    Probe.findByIdAndUpdate(probe._id, { $unset: { 'metadata.pendingCommand': 1 } }).catch(
-      (err: Error) => logger.error(`Failed to clear command for ${probeUuid}: ${err.message}`)
-    );
+    
+    // Clear DB metadata if that's where it came from
+    if (probe.metadata?.pendingCommand) {
+      Probe.findByIdAndUpdate(probe._id, { $unset: { 'metadata.pendingCommand': 1 } }).catch(
+        (err: Error) => logger.error(`Failed to clear command for ${probeUuid}: ${err.message}`)
+      );
+    }
   } catch (error) {
     next(error);
   }
@@ -274,7 +278,7 @@ router.get('/status', async (req: Request, res: Response, next: NextFunction) =>
         isActive: probe.isActive,
         status: probe.status,
         lastActive: probe.lastActive,
-        pendingCommand: probe.metadata?.pendingCommand ?? null,
+        pendingCommand: getPendingCommand(probe.uuid) || probe.metadata?.pendingCommand || null,
       },
     });
   } catch (error) {
