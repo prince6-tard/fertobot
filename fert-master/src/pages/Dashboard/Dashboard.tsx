@@ -63,11 +63,37 @@ const computeHealthScore = (o: DashboardOverview): number => {
   return Math.max(0, Math.min(100, s));
 };
 
-const getTimeAgo = (d: Date) => {
+const getTimeAgo = (d: Date, lang: 'en' | 'hi' = 'en') => {
   const s = Math.floor((Date.now() - d.getTime()) / 1000);
+  if (lang === 'hi') {
+    if (s < 60) return `${s} सेकंड पहले`;
+    if (s < 3600) return `${Math.floor(s / 60)} मिनट पहले`;
+    return `${Math.floor(s / 3600)} घंटे पहले`;
+  }
   if (s < 60) return `${s}s ago`;
   if (s < 3600) return `${Math.floor(s / 60)}m ago`;
   return `${Math.floor(s / 3600)}h ago`;
+};
+
+const getAlertTitle = (title: string, lang: 'en' | 'hi') => {
+  if (lang !== 'hi') return title;
+  if (!title || title.toLowerCase() === 'alert') return 'अलर्ट';
+  if (title.toLowerCase().includes('motion')) return 'गतिविधि पहचानी गई';
+  return title;
+};
+
+const getAlertMessage = (msg: string, lang: 'en' | 'hi') => {
+  if (lang !== 'hi') return msg;
+  if (msg.includes('Smart irrigation schedule optimized for morning humidity')) {
+    return 'सुबह की नमी के अनुसार स्मार्ट सिंचाई शेड्यूल अनुकूलित किया गया';
+  }
+  if (msg.includes('Sector B-3 soil moisture is 32% - watering recommended')) {
+    return 'सेक्टर B-3 में मिट्टी की नमी 32% है - हल्की सिंचाई की सिफारिश की जाती है';
+  }
+  if (msg.includes('Automated detection system identified anomaly')) {
+    return 'सिस्टम द्वारा विसंगति पहचानी गई। फ़ील्ड ऑपरेटर को सूचना भेजी गई।';
+  }
+  return msg;
 };
 
 const getSevColor = (sev: string) => {
@@ -181,7 +207,7 @@ const Dashboard: React.FC = () => {
   const [irrigationOn, setIrrigationOn] = useState(true);
   const [fertOn, setFertOn]             = useState(false);
   const [activeFilter, setActiveFilter] = useState<'all' | 'critical' | 'warning'>('all');
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const userName = useMemo(getUserName, []);
 
   const [refreshing, setRefreshing]     = useState(false);
@@ -233,7 +259,9 @@ const Dashboard: React.FC = () => {
 
   const now = new Date();
   const hour = now.getHours();
-  const greeting = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
+  const greetingKey = hour < 12 ? 'goodMorning' : hour < 17 ? 'goodAfternoon' : 'goodEvening';
+  const displayGreeting = t(greetingKey);
+  const displayUser = userName === 'Farmer' ? t('farmer') : userName;
 
   return (
     <Box sx={{ width: '100%', pb: 3 }}>
@@ -245,22 +273,24 @@ const Dashboard: React.FC = () => {
             fontFamily: '"Inter", sans-serif', fontWeight: 800, letterSpacing: '-0.03em',
             fontSize: { xs: '1.6rem', md: '2rem' }, color: TEXT, lineHeight: 1.1, mb: 0.4,
           }}>
-            {greeting}, {userName}
+            {displayGreeting}, {displayUser}
           </Typography>
           <Typography sx={{ fontSize: '0.8rem', color: MUTED, fontFamily: '"Inter", sans-serif', maxWidth: 480, lineHeight: 1.65 }}>
             {loading
-              ? 'Fetching live data from your field nodes…'
-              : `Field ecosystem nominal · ${onlineNodes || 10} of ${totalNodes || 14} nodes streaming · Next irrigation at 06:00 AM`}
+              ? t('fetchingLiveData')
+              : lang === 'hi'
+                ? `खेत की स्थिति सामान्य · ${totalNodes || 50} में से ${onlineNodes || 44} नोड्स सक्रिय · अगली सिंचाई सुबह 06:00 बजे`
+                : `Field ecosystem nominal · ${onlineNodes || 44} of ${totalNodes || 50} nodes streaming · Next irrigation at 06:00 AM`}
           </Typography>
         </Box>
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexShrink: 0 }}>
           <Box sx={{ display: { xs: 'none', sm: 'block' }, textAlign: 'right' }}>
             <Typography sx={{ fontSize: '0.65rem', color: MUTED, fontWeight: 600 }}>
-              Updated: {overview?.generatedAt ? new Date(overview.generatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now'}
+              {t('updated')}: {overview?.generatedAt ? new Date(overview.generatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : t('justNow')}
             </Typography>
             <Typography sx={{ fontSize: '0.6rem', color: alpha(ACCENT, 0.8), fontWeight: 500 }}>
-              5-min cycle
+              {t('cycle5Min')}
             </Typography>
           </Box>
           <IconButton
@@ -294,10 +324,10 @@ const Dashboard: React.FC = () => {
 
           {/* STAT PILLS ROW */}
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(4, 1fr)' }, gap: 1.25 }}>
-            <StatPill icon={WaterIcon}  label="Soil Moisture" value={latest ? Math.round(latest.soilMoisture) : '—'} unit="%" color={BLUE} />
-            <StatPill icon={ThermoIcon} label="Temperature"   value={latest ? latest.temperature.toFixed(1) : '—'}   unit="°C" color={AMBER} />
-            <StatPill icon={ScienceIcon} label="pH Level"     value={latest ? latest.pH.toFixed(1) : '—'}            color={TEAL} />
-            <StatPill icon={BoltIcon}   label="Conductivity"  value={latest ? latest.conductivity.toFixed(1) : '—'}  unit="mS" color={PURPLE} />
+            <StatPill icon={WaterIcon}  label={t('soilMoisture')} value={latest ? Math.round(latest.soilMoisture) : '—'} unit="%" color={BLUE} />
+            <StatPill icon={ThermoIcon} label={t('temperature')}  value={latest ? latest.temperature.toFixed(1) : '—'}   unit="°C" color={AMBER} />
+            <StatPill icon={ScienceIcon} label={t('phLevel')}    value={latest ? latest.pH.toFixed(1) : '—'}            color={TEAL} />
+            <StatPill icon={BoltIcon}   label={t('conductivity')} value={latest ? latest.conductivity.toFixed(1) : '—'}  unit="mS" color={PURPLE} />
           </Box>
 
           {/* INTELLIGENCE FEED */}
@@ -307,10 +337,10 @@ const Dashboard: React.FC = () => {
             <Box sx={{ px: 2.5, pt: 2.25, pb: 2, borderBottom: `1px solid ${BORDER}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
               <Box>
                 <Typography sx={{ fontFamily: '"Inter", sans-serif', fontWeight: 700, fontSize: '1.05rem', color: TEXT, mb: 0.2 }}>
-                  Active Intelligence
+                  {t('activeIntelligence')}
                 </Typography>
                 <Typography sx={{ fontSize: '0.64rem', color: MUTED, fontFamily: '"DM Mono", monospace' }}>
-                  Real-time alerts and system diagnostics
+                  {t('realTimeAlerts')}
                 </Typography>
               </Box>
               {/* Filter pills */}
@@ -325,7 +355,7 @@ const Dashboard: React.FC = () => {
                     color: activeFilter === f ? (f === 'all' ? ACCENT : f === 'critical' ? RED : AMBER) : MUTED,
                     border: `1px solid ${activeFilter === f ? (f === 'all' ? 'rgba(40,167,69,0.2)' : f === 'critical' ? 'rgba(239,68,68,0.2)' : 'rgba(245,158,11,0.2)') : BORDER}`,
                   }}>
-                    {f}
+                    {t(f)}
                   </Box>
                 ))}
               </Box>
@@ -336,13 +366,13 @@ const Dashboard: React.FC = () => {
               {loading ? (
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, p: 2 }}>
                   <CircularProgress size={16} sx={{ color: ACCENT }} />
-                  <Typography sx={{ fontSize: '0.75rem', color: MUTED, fontFamily: '"Inter", sans-serif' }}>Loading intelligence feed…</Typography>
+                  <Typography sx={{ fontSize: '0.75rem', color: MUTED, fontFamily: '"Inter", sans-serif' }}>{t('loadingIntelligence')}</Typography>
                 </Box>
               ) : filteredAlerts.length > 0 ? filteredAlerts.map((alert, idx) => {
                 const c = getSevColor(alert.severity);
                 const SevIcon = getSevIcon(alert.severity);
-                const bgLabel = alert.severity === 'error' || alert.severity === 'critical' ? 'CRITICAL INTERFERENCE' :
-                                alert.severity === 'warning' ? 'RESOURCE & ENVIRONMENTAL STATE' : 'SYSTEM UPDATE';
+                const bgLabel = alert.severity === 'error' || alert.severity === 'critical' ? t('criticalInterference') :
+                                alert.severity === 'warning' ? t('resourceEnvironmental') : t('systemUpdate');
                 const bgColor = alert.severity === 'error' || alert.severity === 'critical' ? RED :
                                 alert.severity === 'warning' ? AMBER : BLUE;
                 return (
@@ -376,14 +406,14 @@ const Dashboard: React.FC = () => {
                       <Box sx={{ flex: 1, minWidth: 0 }}>
                         <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1, mb: 0.4 }}>
                           <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: TEXT, fontFamily: '"Inter", sans-serif', lineHeight: 1.35 }}>
-                            {alert.title}
+                            {getAlertTitle(alert.title, lang)}
                           </Typography>
                           <Typography sx={{ fontSize: '0.58rem', color: MUTED, fontFamily: '"DM Mono", monospace', flexShrink: 0 }}>
-                            {getTimeAgo(new Date(alert.timestamp))}
+                            {getTimeAgo(new Date(alert.timestamp), lang)}
                           </Typography>
                         </Box>
                         <Typography sx={{ fontSize: '0.72rem', color: alpha(TEXT, 0.55), fontFamily: '"Inter", sans-serif', lineHeight: 1.5, mb: 1 }}>
-                          {alert.message || 'Automated detection system identified anomaly. Field operator notification dispatched.'}
+                          {getAlertMessage(alert.message || 'Automated detection system identified anomaly. Field operator notification dispatched.', lang)}
                         </Typography>
 
                         {/* Action buttons */}
@@ -396,7 +426,7 @@ const Dashboard: React.FC = () => {
                             transition: 'all 0.15s',
                             '&:hover': { bgcolor: alpha(c, 0.18) },
                           }}>
-                            {alert.severity === 'critical' || alert.severity === 'error' ? 'Dispatch Security' : 'Acknowledge'}
+                            {alert.severity === 'critical' || alert.severity === 'error' ? t('dispatchSecurity') : t('acknowledge')}
                           </Box>
                           <Box sx={{
                             px: 1.25, py: 0.5, borderRadius: '7px', cursor: 'pointer',
@@ -406,7 +436,7 @@ const Dashboard: React.FC = () => {
                             transition: 'all 0.15s',
                             '&:hover': { borderColor: alpha(TEXT, 0.15), color: TEXT },
                           }}>
-                            Dismiss
+                            {t('dismiss')}
                           </Box>
                         </Box>
                       </Box>
@@ -422,8 +452,8 @@ const Dashboard: React.FC = () => {
                     <CheckIcon sx={{ fontSize: 17, color: ACCENT }} />
                   </Box>
                   <Box>
-                    <Typography sx={{ fontSize: '0.8rem', fontWeight: 700, color: ACCENT, fontFamily: '"Inter", sans-serif' }}>All systems nominal</Typography>
-                    <Typography sx={{ fontSize: '0.64rem', color: MUTED, fontFamily: '"Inter", sans-serif' }}>No active alerts or anomalies detected</Typography>
+                    <Typography sx={{ fontSize: '0.8rem', fontWeight: 700, color: ACCENT, fontFamily: '"Inter", sans-serif' }}>{t('allSystemsNominal')}</Typography>
+                    <Typography sx={{ fontSize: '0.64rem', color: MUTED, fontFamily: '"Inter", sans-serif' }}>{t('noActiveAlertsDetected')}</Typography>
                   </Box>
                 </Box>
               )}
@@ -438,7 +468,7 @@ const Dashboard: React.FC = () => {
                 transition: 'color 0.15s',
                 '&:hover': { color: ACCENT },
               }}>
-                View all alerts <ArrowRightIcon sx={{ fontSize: 12 }} />
+                {t('viewAllAlerts')} <ArrowRightIcon sx={{ fontSize: 12 }} />
               </Box>
             </Box>
           </Box>
@@ -452,7 +482,7 @@ const Dashboard: React.FC = () => {
               <Box sx={{ position: 'absolute', top: -30, right: -30, width: 140, height: 140, borderRadius: '50%', background: `radial-gradient(circle, ${alpha(ACCENT, 0.08)} 0%, transparent 70%)`, pointerEvents: 'none' }} />
 
               <Typography sx={{ fontSize: '0.52rem', fontWeight: 700, color: MUTED, letterSpacing: '0.14em', textTransform: 'uppercase', fontFamily: '"DM Mono", monospace', mb: 1.5 }}>
-                Farm Health Score
+                {t('farmHealthScore')}
               </Typography>
 
               <Box sx={{ display: 'flex', alignItems: 'flex-end', gap: 2, mb: 1.5 }}>
@@ -466,7 +496,7 @@ const Dashboard: React.FC = () => {
                   </Box>
                   <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.4, px: 0.9, py: 0.3, borderRadius: '20px', bgcolor: alpha(ACCENT, 0.1), border: `1px solid ${alpha(ACCENT, 0.2)}` }}>
                     <ArrowUpIcon sx={{ fontSize: 10, color: ACCENT }} />
-                    <Typography sx={{ fontSize: '0.58rem', fontWeight: 700, color: ACCENT, fontFamily: '"DM Mono", monospace' }}>+2.4% this week</Typography>
+                    <Typography sx={{ fontSize: '0.58rem', fontWeight: 700, color: ACCENT, fontFamily: '"DM Mono", monospace' }}>{t('thisWeekTrend')}</Typography>
                   </Box>
                 </Box>
 
@@ -488,9 +518,9 @@ const Dashboard: React.FC = () => {
 
               <Box sx={{ display: 'flex', gap: 3 }}>
                 {[
-                  { val: totalNodes || 14, label: 'Total Nodes' },
-                  { val: onlineNodes || 10, label: 'Online' },
-                  { val: allAlerts.length || 3, label: 'Active Alerts' },
+                  { val: totalNodes || 50, label: t('totalNodes') },
+                  { val: onlineNodes || 44, label: t('online') },
+                  { val: allAlerts.length || 2, label: t('activeAlertsCount') },
                 ].map(s => (
                   <Box key={s.label}>
                     <Typography sx={{ fontFamily: '"DM Mono", monospace', fontSize: '1rem', fontWeight: 700, color: TEXT }}>{s.val}</Typography>
@@ -503,7 +533,7 @@ const Dashboard: React.FC = () => {
             {/* Controls */}
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
               {[
-                { icon: '💧', label: t('smartWater'), status: irrigationOn, setStatus: setIrrigationOn, color: BLUE, sub: irrigationOn ? 'Next cycle · 06:00 AM' : t('manualMode') },
+                { icon: '💧', label: t('smartWater'), status: irrigationOn, setStatus: setIrrigationOn, color: BLUE, sub: irrigationOn ? t('nextCycle6am') : t('manualMode') },
                 { icon: '🌿', label: t('smartKhaad'),   status: fertOn,       setStatus: setFertOn,       color: ACCENT, sub: fertOn ? t('activeBalanced') : t('manualAdj') },
               ].map(ctrl => (
                 <Box key={ctrl.label} sx={{ bgcolor: CARD, borderRadius: '14px', border: `1px solid ${BORDER}`, boxShadow: SHADOW, p: 2, flex: 1,
@@ -522,7 +552,7 @@ const Dashboard: React.FC = () => {
                     <Box sx={{ width: 5, height: 5, borderRadius: '50%', bgcolor: ctrl.status ? ctrl.color : MUTED,
                       ...(ctrl.status && { animation: 'pulse-dot 2s ease-in-out infinite' }) }} />
                     <Typography sx={{ fontSize: '0.6rem', fontWeight: 600, color: ctrl.status ? ctrl.color : MUTED, fontFamily: '"DM Mono", monospace', letterSpacing: '0.06em' }}>
-                      {ctrl.status ? 'ENABLED' : 'DISABLED'}
+                      {ctrl.status ? t('enabled') : t('disabled')}
                     </Typography>
                   </Box>
                   <Typography sx={{ fontSize: '0.58rem', color: MUTED, fontFamily: '"Inter", sans-serif', mt: 0.15 }}>{ctrl.sub}</Typography>
@@ -535,24 +565,24 @@ const Dashboard: React.FC = () => {
           <Box sx={{ bgcolor: CARD, borderRadius: '16px', border: `1px solid ${BORDER}`, boxShadow: SHADOW, overflow: 'hidden' }}>
             <Box sx={{ px: 2.5, pt: 2.25, pb: 1.75, borderBottom: `1px solid ${BORDER}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <Box>
-                <Typography sx={{ fontFamily: '"Inter", sans-serif', fontWeight: 700, fontSize: '1rem', color: TEXT, mb: 0.15 }}>Nutrient Concentration</Typography>
-                <Typography sx={{ fontSize: '0.6rem', color: MUTED, fontFamily: '"DM Mono", monospace' }}>NPK · Real-time soil analysis</Typography>
+                <Typography sx={{ fontFamily: '"Inter", sans-serif', fontWeight: 700, fontSize: '1rem', color: TEXT, mb: 0.15 }}>{t('nutrientConcentration')}</Typography>
+                <Typography sx={{ fontSize: '0.6rem', color: MUTED, fontFamily: '"DM Mono", monospace' }}>{t('npkRealTime')}</Typography>
               </Box>
               <Box sx={{ display: 'inline-flex', px: 1, py: 0.4, borderRadius: '20px', bgcolor: alpha(ACCENT, 0.1), border: `1px solid ${alpha(ACCENT, 0.2)}` }}>
-                <Typography sx={{ fontSize: '0.56rem', fontWeight: 700, color: ACCENT, fontFamily: '"DM Mono", monospace', letterSpacing: '0.08em' }}>FULL NUTRIENT</Typography>
+                <Typography sx={{ fontSize: '0.56rem', fontWeight: 700, color: ACCENT, fontFamily: '"DM Mono", monospace', letterSpacing: '0.08em' }}>{t('fullNutrient')}</Typography>
               </Box>
             </Box>
             <Box sx={{ p: 2.5 }}>
               {loading ? (
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                   <CircularProgress size={16} sx={{ color: ACCENT }} />
-                  <Typography sx={{ fontSize: '0.75rem', color: MUTED }}>Loading nutrient data…</Typography>
+                  <Typography sx={{ fontSize: '0.75rem', color: MUTED }}>{t('loadingNutrient')}</Typography>
                 </Box>
               ) : (
                 <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(3, 1fr)', md: 'repeat(3, 1fr)' }, gap: 2.5, justifyItems: 'center' }}>
-                  <NpkDial label="Nitrogen"   value={npk.n} max={300} color={ACCENT}  symbol="🌿" />
-                  <NpkDial label="Phosphorus" value={npk.p} max={200} color={AMBER}   symbol="⚡" />
-                  <NpkDial label="Potassium"  value={npk.k} max={400} color={PURPLE}  symbol="💎" />
+                  <NpkDial label={t('nitrogen')}   value={npk.n} max={300} color={ACCENT}  symbol="🌿" />
+                  <NpkDial label={t('phosphorus')} value={npk.p} max={200} color={AMBER}   symbol="⚡" />
+                  <NpkDial label={t('potassium')}  value={npk.k} max={400} color={PURPLE}  symbol="💎" />
                 </Box>
               )}
             </Box>
@@ -562,20 +592,20 @@ const Dashboard: React.FC = () => {
           <Box sx={{ bgcolor: CARD, borderRadius: '16px', border: `1px solid ${BORDER}`, boxShadow: SHADOW, overflow: 'hidden' }}>
             <Box sx={{ px: 2.5, pt: 2, pb: 1.75, borderBottom: `1px solid ${BORDER}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <Box>
-                <Typography sx={{ fontFamily: '"Inter", sans-serif', fontWeight: 700, fontSize: '1rem', color: TEXT, mb: 0.15 }}>Spatial Monitoring</Typography>
-                <Typography sx={{ fontSize: '0.6rem', color: MUTED, fontFamily: '"DM Mono", monospace' }}>Geo-node streaming · 4 active zones</Typography>
+                <Typography sx={{ fontFamily: '"Inter", sans-serif', fontWeight: 700, fontSize: '1rem', color: TEXT, mb: 0.15 }}>{t('spatialMonitoring')}</Typography>
+                <Typography sx={{ fontSize: '0.6rem', color: MUTED, fontFamily: '"DM Mono", monospace' }}>{t('geoNodeStreaming')}</Typography>
               </Box>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6, px: 1, py: 0.4, borderRadius: '20px', bgcolor: alpha(TEAL, 0.08), border: `1px solid ${alpha(TEAL, 0.15)}` }}>
                 <Box sx={{ width: 5, height: 5, borderRadius: '50%', bgcolor: TEAL, animation: 'pulse-dot 2s ease-in-out infinite' }} />
-                <Typography sx={{ fontSize: '0.54rem', fontWeight: 700, color: TEAL, fontFamily: '"DM Mono", monospace', letterSpacing: '0.08em' }}>LIVE STREAM</Typography>
+                <Typography sx={{ fontSize: '0.54rem', fontWeight: 700, color: TEAL, fontFamily: '"DM Mono", monospace', letterSpacing: '0.08em' }}>{t('liveStream')}</Typography>
               </Box>
             </Box>
 
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '180px 1fr' } }}>
               <Box sx={{ borderRight: { md: `1px solid ${BORDER}` }, p: 1.75, display: 'flex', flexDirection: 'column', gap: 0.75 }}>
                 {[
-                  { label: 'Spatial View',     sub: 'Active zones: 4',                icon: GridIcon,  color: ACCENT, active: true },
-                  { label: 'Node Management',  sub: 'Valley Ridge · Sector 5',         icon: MemoryIcon, color: TEAL,  active: false },
+                  { label: t('spatialView'),    sub: t('activeZones4'),  icon: GridIcon,  color: ACCENT, active: true },
+                  { label: t('nodeManagement'), sub: t('valleyRidge'),   icon: MemoryIcon, color: TEAL,  active: false },
                 ].map(item => (
                   <Box key={item.label} sx={{
                     display: 'flex', alignItems: 'flex-start', gap: 1.25, p: 1.25, borderRadius: '10px',
@@ -629,7 +659,7 @@ const Dashboard: React.FC = () => {
                 <Box sx={{ position: 'absolute', bottom: '18%', right: '24%', px: 1.1, py: 0.4, borderRadius: '6px',
                   bgcolor: 'rgba(0,0,0,0.7)', border: `1px solid ${alpha(ACCENT, 0.25)}`, backdropFilter: 'blur(4px)' }}>
                   <Typography sx={{ fontSize: '0.52rem', color: ACCENT, fontFamily: '"DM Mono", monospace', letterSpacing: '0.06em' }}>
-                    Valley Ridge · Sector 5
+                    {t('valleyRidge')}
                   </Typography>
                 </Box>
               </Box>
@@ -651,9 +681,9 @@ const Dashboard: React.FC = () => {
               <MicIcon sx={{ fontSize: 20, color: ACCENT }} />
             </Box>
             <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Typography sx={{ fontSize: '0.86rem', fontWeight: 700, color: TEXT, fontFamily: '"Inter", sans-serif', mb: 0.15 }}>AI Crop Advisory</Typography>
+              <Typography sx={{ fontSize: '0.86rem', fontWeight: 700, color: TEXT, fontFamily: '"Inter", sans-serif', mb: 0.15 }}>{t('aiCropAdvisory')}</Typography>
               <Typography sx={{ fontSize: '0.6rem', color: alpha(ACCENT, 0.7), fontFamily: '"DM Mono", monospace', letterSpacing: '0.07em' }}>
-                VOICE + CHAT ASSISTANT · TAP TO OPEN
+                {t('aiCtaSub')}
               </Typography>
             </Box>
             <ArrowRightIcon sx={{ fontSize: 16, color: MUTED }} />
@@ -780,10 +810,10 @@ const Dashboard: React.FC = () => {
             '&:hover': { borderColor: 'rgba(40,167,69,0.2)' },
           }}>
             <Box sx={{ p: 1.75, display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `1px solid ${BORDER}` }}>
-              <Typography sx={{ fontFamily: '"Inter", sans-serif', fontWeight: 700, fontSize: '0.9rem', color: TEXT }}>Live Feed</Typography>
+              <Typography sx={{ fontFamily: '"Inter", sans-serif', fontWeight: 700, fontSize: '0.9rem', color: TEXT }}>{t('liveFeed')}</Typography>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, px: 0.85, py: 0.35, borderRadius: '20px', bgcolor: alpha(RED, 0.1), border: `1px solid ${alpha(RED, 0.2)}` }}>
                 <Box sx={{ width: 5, height: 5, borderRadius: '50%', bgcolor: RED, animation: 'pulse-dot 1.5s ease-in-out infinite' }} />
-                <Typography sx={{ fontSize: '0.5rem', fontWeight: 700, color: RED, fontFamily: '"DM Mono", monospace', letterSpacing: '0.1em' }}>RECORDING</Typography>
+                <Typography sx={{ fontSize: '0.5rem', fontWeight: 700, color: RED, fontFamily: '"DM Mono", monospace', letterSpacing: '0.1em' }}>{t('recording')}</Typography>
               </Box>
             </Box>
             <Box sx={{
@@ -809,7 +839,9 @@ const Dashboard: React.FC = () => {
                 borderRadius: '50%', border: `1px solid ${alpha(ACCENT, 0.25)}` }} />
               {/* Label */}
               <Box sx={{ position: 'absolute', bottom: 10, left: 12, px: 1, py: 0.4, borderRadius: '5px', bgcolor: 'rgba(0,0,0,0.65)', border: `1px solid ${alpha(ACCENT, 0.2)}` }}>
-                <Typography sx={{ fontSize: '0.5rem', color: ACCENT, fontFamily: '"DM Mono", monospace', letterSpacing: '0.08em' }}>Sector A-12 Cam</Typography>
+                <Typography sx={{ fontSize: '0.5rem', color: ACCENT, fontFamily: '"DM Mono", monospace', letterSpacing: '0.08em' }}>
+                  {lang === 'hi' ? 'सेक्टर A-12 कैमरा' : 'Sector A-12 Cam'}
+                </Typography>
               </Box>
             </Box>
           </Box>
@@ -817,9 +849,9 @@ const Dashboard: React.FC = () => {
           {/* RECENT ALERTS MINI */}
           <Box sx={{ bgcolor: CARD, borderRadius: '16px', border: `1px solid ${BORDER}`, boxShadow: SHADOW, overflow: 'hidden' }}>
             <Box sx={{ px: 2.25, pt: 2, pb: 1.75, borderBottom: `1px solid ${BORDER}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Typography sx={{ fontFamily: '"Inter", sans-serif', fontWeight: 700, fontSize: '0.95rem', color: TEXT }}>Recent Alerts</Typography>
+              <Typography sx={{ fontFamily: '"Inter", sans-serif', fontWeight: 700, fontSize: '0.95rem', color: TEXT }}>{t('recentAlerts')}</Typography>
               <Typography onClick={() => navigate('/security')} sx={{ fontSize: '0.58rem', fontWeight: 700, color: MUTED, fontFamily: '"DM Mono", monospace', cursor: 'pointer', letterSpacing: '0.08em', textTransform: 'uppercase', '&:hover': { color: ACCENT } }}>
-                View all →
+                {t('viewAll')}
               </Typography>
             </Box>
             <Box sx={{ p: 1.75, display: 'flex', flexDirection: 'column', gap: 0.75 }}>
@@ -830,15 +862,19 @@ const Dashboard: React.FC = () => {
                 return (
                   <Box key={alert.id} sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, p: 1, borderRadius: '9px', bgcolor: alpha(c, 0.04), borderLeft: `2px solid ${c}` }}>
                     <Box sx={{ flex: 1, minWidth: 0 }}>
-                      <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: TEXT, fontFamily: '"Inter", sans-serif', lineHeight: 1.3 }} noWrap>{alert.title}</Typography>
-                      <Typography sx={{ fontSize: '0.57rem', color: MUTED, fontFamily: '"DM Mono", monospace' }}>{getTimeAgo(new Date(alert.timestamp))}</Typography>
+                      <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: TEXT, fontFamily: '"Inter", sans-serif', lineHeight: 1.3 }} noWrap>
+                        {getAlertTitle(alert.title, lang)}
+                      </Typography>
+                      <Typography sx={{ fontSize: '0.57rem', color: MUTED, fontFamily: '"DM Mono", monospace' }}>
+                        {getTimeAgo(new Date(alert.timestamp), lang)}
+                      </Typography>
                     </Box>
                   </Box>
                 );
               }) : (
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1.25, borderRadius: '9px', bgcolor: alpha(ACCENT, 0.04), borderLeft: `2px solid ${ACCENT}` }}>
                   <CheckIcon sx={{ fontSize: 13, color: ACCENT }} />
-                  <Typography sx={{ fontSize: '0.7rem', color: ACCENT, fontFamily: '"Inter", sans-serif', fontWeight: 500 }}>No active alerts</Typography>
+                  <Typography sx={{ fontSize: '0.7rem', color: ACCENT, fontFamily: '"Inter", sans-serif', fontWeight: 500 }}>{t('noActiveAlerts')}</Typography>
                 </Box>
               )}
             </Box>

@@ -38,14 +38,16 @@ const CONTENT = '#F5F8F6';
 // ── Nav config ────────────────────────────────────────────
 const navSections = [
   {
+    id: 'main',
     label: 'MAIN',
     items: [
       { id: 'dashboard',     label: 'Overview',   icon: OverviewIcon,   path: '/dashboard' },
+      { id: 'voice-chatbot', label: 'Voice Assistant', icon: AIIcon,    path: '/voice-chatbot' },
       { id: 'security',      label: 'Alerts',     icon: AlertsIcon,     path: '/security',    badge: 3 },
-      { id: 'voice-chatbot', label: 'Voice Assistant', icon: SupportIcon,    path: '/voice-chatbot' },
     ],
   },
   {
+    id: 'fieldOps',
     label: 'FIELD OPS',
     items: [
       { id: 'probes',        label: 'Devices',    icon: DevicesIcon,    path: '/probes' },
@@ -56,10 +58,10 @@ const navSections = [
 
 const mobileNav = [
   { id: 'dashboard',     label: 'Overview', icon: OverviewIcon,   path: '/dashboard' },
+  { id: 'voice-chatbot', label: 'AI',       icon: AIIcon,         path: '/voice-chatbot' },
   { id: 'security',      label: 'Alerts',   icon: AlertsIcon,     path: '/security' },
   { id: 'probes',        label: 'Devices',  icon: SensorsIcon,    path: '/probes' },
   { id: 'irrigation',    label: 'Water',    icon: IrrigationIcon, path: '/irrigation' },
-  { id: 'voice-chatbot', label: 'AI',       icon: AIIcon,         path: '/voice-chatbot' },
 ];
 
 interface LayoutProps { children: React.ReactNode; }
@@ -111,12 +113,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           {/* Nav sections */}
           <Box sx={{ flex: 1, py: 2, px: 1.5, display: 'flex', flexDirection: 'column', gap: 2, overflowY: 'auto' }}>
             {navSections.map(section => (
-              <Box key={section.label}>
+              <Box key={section.id}>
                 <Typography sx={{
                   fontSize: '0.6rem', fontWeight: 700, color: SB_MUTED,
                   letterSpacing: '0.1em', textTransform: 'uppercase', px: 1.25, mb: 0.75,
                 }}>
-                  {section.label}
+                  {t(section.id)}
                 </Typography>
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
                   {section.items.map(item => {
@@ -187,7 +189,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 <AddIcon sx={{ fontSize: 16, color: SB_ACCENT }} />
               </Box>
               <Typography sx={{ fontSize: '0.8rem', fontWeight: 600, color: SB_ACCENT, fontFamily: '"Inter", sans-serif' }}>
-                Deploy New Node
+                {t('deployNode')}
               </Typography>
             </Box>
 
@@ -197,7 +199,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               '&:hover': { bgcolor: SB_HOVER },
             }}>
               <LogsIcon sx={{ fontSize: 16, color: SB_MUTED }} />
-              <Typography sx={{ fontSize: '0.8rem', color: SB_MUTED, fontWeight: 500 }}>System Logs</Typography>
+              <Typography sx={{ fontSize: '0.8rem', color: SB_MUTED, fontWeight: 500 }}>{t('systemLogs')}</Typography>
             </Box>
 
             <Box onClick={() => { localStorage.removeItem('token'); navigate('/login'); }} sx={{
@@ -206,7 +208,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               '&:hover': { bgcolor: 'rgba(220,53,69,0.08)' },
             }}>
               <LogoutIcon sx={{ fontSize: 16, color: '#DC3545' }} />
-              <Typography sx={{ fontSize: '0.8rem', color: '#DC3545', fontWeight: 600 }}>Logout</Typography>
+              <Typography sx={{ fontSize: '0.8rem', color: '#DC3545', fontWeight: 600 }}>{t('logout')}</Typography>
             </Box>
           </Box>
         </Box>
@@ -236,7 +238,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           }}>
             <SearchIcon sx={{ fontSize: 18, color: '#6B7280' }} />
             <InputBase
-              placeholder="Search sensors, nodes, field ID…"
+              placeholder={t('searchPlaceholder')}
               sx={{
                 flex: 1, fontSize: '0.85rem', color: '#1F2937',
                 fontFamily: '"Inter", sans-serif',
@@ -256,7 +258,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: '#28A745',
               animation: 'pulse-dot 2s ease-in-out infinite' }} />
             <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: '#1A7F37', letterSpacing: '0.05em' }}>
-              LIVE · ACTIVE
+              {t('liveActive')}
             </Typography>
           </Box>
 
