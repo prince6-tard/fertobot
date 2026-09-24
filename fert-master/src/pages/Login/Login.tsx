@@ -6,7 +6,7 @@ import {
 } from '@mui/material';
 import { Visibility, VisibilityOff } from '@mui/icons-material';
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://fertobot-production.up.railway.app';
+const API_URL = import.meta.env.VITE_API_URL || '';
 
 const ACCENT = '#1A7F37';
 
