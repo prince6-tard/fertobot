@@ -115,7 +115,7 @@ const ProbeCard: React.FC<ProbeCardProps> = ({
           borderRadius: 1,
           '&:hover': {
             borderColor: colors.neutral[300],
-            backgroundColor: colors.neutral[25],
+            backgroundColor: colors.neutral[50],
           },
         }}
         onClick={() => onProbeClick(probe)}

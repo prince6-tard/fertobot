@@ -1,4 +1,7 @@
 {
+  "buildCommand": "cd fert-master && npm run build",
+  "outputDirectory": "fert-master/dist",
+  "installCommand": "cd fert-master && npm install",
   "rewrites": [
     { "source": "/api/:path*", "destination": "https://fertobot-production.up.railway.app/api/:path*" },
     { "source": "/(.*)", "destination": "/index.html" }
