@@ -17,22 +17,23 @@ import {
   Description as LogsIcon,
   Logout as LogoutIcon,
   Add as AddIcon,
-  FiberManualRecord as DotIcon,
+  Language as LanguageIcon,
 } from '@mui/icons-material';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useLanguage } from '../../context/LanguageContext';
 
-// ── Design Tokens ─────────────────────────────────────────
-const SB_BG      = '#070D09';
-const SB_HOVER   = 'rgba(168,255,62,0.05)';
-const SB_ACTIVE  = 'rgba(168,255,62,0.10)';
-const SB_BORDER  = 'rgba(168,255,62,0.07)';
-const SB_TEXT    = '#C8E8D2';
-const SB_MUTED   = '#3E5A48';
-const SB_ACCENT  = '#A8FF3E';
-const SB_W       = 230;
+// ── Design Tokens (Light Theme) ───────────────────────────
+const SB_BG      = '#FFFFFF';
+const SB_HOVER   = 'rgba(40,167,69,0.06)';
+const SB_ACTIVE  = 'rgba(40,167,69,0.1)';
+const SB_BORDER  = 'rgba(0,0,0,0.06)';
+const SB_TEXT    = '#1F2937';
+const SB_MUTED   = '#6B7280';
+const SB_ACCENT  = '#1A7F37';
+const SB_W       = 240;
 
-const TOP_BG  = '#0A1410';
-const CONTENT = '#060C08';
+const TOP_BG  = '#FFFFFF';
+const CONTENT = '#F5F8F6';
 
 // ── Nav config ────────────────────────────────────────────
 const navSections = [
@@ -41,6 +42,7 @@ const navSections = [
     items: [
       { id: 'dashboard',     label: 'Overview',   icon: OverviewIcon,   path: '/dashboard' },
       { id: 'security',      label: 'Alerts',     icon: AlertsIcon,     path: '/security',    badge: 3 },
+      { id: 'voice-chatbot', label: 'Voice Assistant', icon: SupportIcon,    path: '/voice-chatbot' },
     ],
   },
   {
@@ -48,12 +50,6 @@ const navSections = [
     items: [
       { id: 'probes',        label: 'Devices',    icon: DevicesIcon,    path: '/probes' },
       { id: 'irrigation',    label: 'Irrigation', icon: IrrigationIcon, path: '/irrigation' },
-    ],
-  },
-  {
-    label: 'INTELLIGENCE',
-    items: [
-      { id: 'voice-chatbot', label: 'AI Support', icon: SupportIcon,    path: '/voice-chatbot' },
     ],
   },
 ];
@@ -75,6 +71,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const isDesktop = useMediaQuery(muiTheme.breakpoints.up('md'));
   const currentPath   = location.pathname;
   const mobileCurrent = mobileNav.findIndex(item => item.path === currentPath);
+  const { lang, setLang, t } = useLanguage();
+
+  const toggleLang = () => {
+    setLang(lang === 'en' ? 'hi' : 'en');
+  };
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: CONTENT }}>
@@ -85,45 +86,26 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           width: SB_W, flexShrink: 0, display: 'flex', flexDirection: 'column',
           bgcolor: SB_BG, height: '100vh', position: 'sticky', top: 0,
           borderRight: `1px solid ${SB_BORDER}`,
-          backgroundImage: `
-            radial-gradient(ellipse at 0% 30%, rgba(168,255,62,0.03) 0%, transparent 60%),
-            radial-gradient(ellipse at 80% 80%, rgba(0,229,198,0.02) 0%, transparent 50%)
-          `,
         }}>
 
           {/* Logo */}
-          <Box sx={{ px: 2.5, pt: 2.5, pb: 2.5, borderBottom: `1px solid ${SB_BORDER}` }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-              {/* Icon mark */}
-              <Box sx={{
-                width: 36, height: 36, borderRadius: '10px', flexShrink: 0,
-                background: 'linear-gradient(135deg, #A8FF3E 0%, #5AC800 100%)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: '0 0 16px rgba(168,255,62,0.35)',
-                position: 'relative', overflow: 'hidden',
-              }}>
-                <Typography sx={{ fontSize: '1.1rem', lineHeight: 1, zIndex: 1 }}>🌿</Typography>
-                <Box sx={{
-                  position: 'absolute', inset: 0, opacity: 0.2,
-                  backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 3px, rgba(255,255,255,0.4) 3px, rgba(255,255,255,0.4) 4px)',
-                }} />
-              </Box>
-              <Box>
-                <Typography sx={{
-                  fontWeight: 800, fontSize: '0.92rem', color: '#FFFFFF',
-                  fontFamily: '"Syne", sans-serif', lineHeight: 1.2, letterSpacing: '-0.01em',
-                }}>
-                  FertoBot Pro
-                </Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
-                  <Box sx={{ width: 5, height: 5, borderRadius: '50%', bgcolor: SB_ACCENT,
-                    animation: 'pulse-dot 2s ease-in-out infinite' }} />
-                  <Typography sx={{ fontSize: '0.52rem', color: SB_MUTED, fontFamily: '"DM Mono", monospace', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-                    Live · Connected
-                  </Typography>
-                </Box>
-              </Box>
-            </Box>
+          <Box sx={{ px: 2.5, pt: 2.5, pb: 2, borderBottom: `1px solid ${SB_BORDER}`, textAlign: 'center' }}>
+            <Box
+              component="img"
+              src="/images/fertobot-logo.png"
+              alt="FertoBot Logo"
+              sx={{
+                width: '100%',
+                maxWidth: 175,
+                height: 'auto',
+                display: 'block',
+                mx: 'auto',
+                mb: 0.5,
+              }}
+            />
+            <Typography sx={{ fontSize: '0.72rem', color: '#6B7280', fontWeight: 600, letterSpacing: '0.04em' }}>
+              Farms That Think.
+            </Typography>
           </Box>
 
           {/* Nav sections */}
@@ -131,9 +113,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             {navSections.map(section => (
               <Box key={section.label}>
                 <Typography sx={{
-                  fontSize: '0.5rem', fontWeight: 700, color: SB_MUTED,
-                  fontFamily: '"DM Mono", monospace', letterSpacing: '0.16em',
-                  textTransform: 'uppercase', px: 1.25, mb: 0.75,
+                  fontSize: '0.6rem', fontWeight: 700, color: SB_MUTED,
+                  letterSpacing: '0.1em', textTransform: 'uppercase', px: 1.25, mb: 0.75,
                 }}>
                   {section.label}
                 </Typography>
@@ -147,7 +128,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                         display: 'flex', alignItems: 'center', gap: 1.25,
                         px: 1.25, py: 0.9, borderRadius: '8px', cursor: 'pointer',
                         backgroundColor: active ? SB_ACTIVE : 'transparent',
-                        border: `1px solid ${active ? 'rgba(168,255,62,0.12)' : 'transparent'}`,
                         transition: 'all 0.15s ease',
                         position: 'relative', overflow: 'hidden',
                         '&:hover': { backgroundColor: active ? SB_ACTIVE : SB_HOVER },
@@ -155,31 +135,29 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                         {active && (
                           <Box sx={{
                             position: 'absolute', left: 0, top: '20%', bottom: '20%',
-                            width: 2, borderRadius: '0 2px 2px 0', bgcolor: SB_ACCENT,
-                            boxShadow: `0 0 8px ${SB_ACCENT}`,
+                            width: 3, borderRadius: '0 3px 3px 0', bgcolor: SB_ACCENT,
                           }} />
                         )}
                         <Box sx={{
                           width: 28, height: 28, borderRadius: '7px', flexShrink: 0,
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          bgcolor: active ? 'rgba(168,255,62,0.12)' : 'rgba(255,255,255,0.03)',
-                          border: `1px solid ${active ? 'rgba(168,255,62,0.2)' : 'rgba(255,255,255,0.04)'}`,
+                          bgcolor: active ? 'rgba(26,127,55,0.1)' : 'rgba(0,0,0,0.03)',
                         }}>
-                          <Icon sx={{ fontSize: 14, color: active ? SB_ACCENT : SB_MUTED }} />
+                          <Icon sx={{ fontSize: 16, color: active ? SB_ACCENT : SB_MUTED }} />
                         </Box>
                         <Typography sx={{
-                          fontSize: '0.78rem', fontWeight: active ? 600 : 400,
+                          fontSize: '0.85rem', fontWeight: active ? 600 : 500,
                           color: active ? SB_TEXT : SB_MUTED,
-                          fontFamily: '"Figtree", sans-serif', flex: 1,
+                          fontFamily: '"Inter", sans-serif', flex: 1,
                         }}>
-                          {item.label}
+                          {t(item.id)}
                         </Typography>
                         {item.badge && (
                           <Box sx={{
-                            minWidth: 18, height: 18, borderRadius: '9px', px: 0.5,
-                            bgcolor: '#FF4565', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            minWidth: 20, height: 20, borderRadius: '10px', px: 0.5,
+                            bgcolor: '#DC3545', display: 'flex', alignItems: 'center', justifyContent: 'center',
                           }}>
-                            <Typography sx={{ fontSize: '0.48rem', fontWeight: 700, color: '#FFFFFF', fontFamily: '"DM Mono", monospace' }}>
+                            <Typography sx={{ fontSize: '0.6rem', fontWeight: 700, color: '#FFFFFF' }}>
                               {item.badge}
                             </Typography>
                           </Box>
@@ -197,73 +175,72 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             {/* Deploy button */}
             <Box onClick={() => navigate('/probes')} sx={{
               display: 'flex', alignItems: 'center', gap: 1.25,
-              px: 1.5, py: 1.1, borderRadius: '9px', cursor: 'pointer', mb: 0.5,
-              background: 'linear-gradient(135deg, rgba(168,255,62,0.12), rgba(168,255,62,0.06))',
-              border: '1px solid rgba(168,255,62,0.2)',
+              px: 1.5, py: 1.1, borderRadius: '9px', cursor: 'pointer', mb: 1,
+              background: 'linear-gradient(135deg, rgba(40,167,69,0.1), rgba(26,127,55,0.05))',
+              border: '1px solid rgba(40,167,69,0.2)',
               transition: 'all 0.2s ease',
               '&:hover': {
-                background: 'linear-gradient(135deg, rgba(168,255,62,0.18), rgba(168,255,62,0.10))',
-                boxShadow: '0 0 16px rgba(168,255,62,0.12)',
+                background: 'linear-gradient(135deg, rgba(40,167,69,0.15), rgba(26,127,55,0.1))',
               },
             }}>
-              <Box sx={{ width: 22, height: 22, borderRadius: '6px', bgcolor: 'rgba(168,255,62,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <AddIcon sx={{ fontSize: 13, color: SB_ACCENT }} />
+              <Box sx={{ width: 24, height: 24, borderRadius: '6px', bgcolor: 'rgba(26,127,55,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <AddIcon sx={{ fontSize: 16, color: SB_ACCENT }} />
               </Box>
-              <Typography sx={{ fontSize: '0.74rem', fontWeight: 600, color: SB_ACCENT, fontFamily: '"Figtree", sans-serif' }}>
+              <Typography sx={{ fontSize: '0.8rem', fontWeight: 600, color: SB_ACCENT, fontFamily: '"Inter", sans-serif' }}>
                 Deploy New Node
               </Typography>
             </Box>
 
             <Box onClick={() => navigate('/profile')} sx={{
-              display: 'flex', alignItems: 'center', gap: 1.25, px: 1.25, py: 0.7,
+              display: 'flex', alignItems: 'center', gap: 1.25, px: 1.25, py: 0.8,
               borderRadius: '7px', cursor: 'pointer', mt: 0.5,
               '&:hover': { bgcolor: SB_HOVER },
             }}>
-              <LogsIcon sx={{ fontSize: 13, color: SB_MUTED }} />
-              <Typography sx={{ fontSize: '0.71rem', color: SB_MUTED, fontFamily: '"Figtree", sans-serif' }}>System Logs</Typography>
+              <LogsIcon sx={{ fontSize: 16, color: SB_MUTED }} />
+              <Typography sx={{ fontSize: '0.8rem', color: SB_MUTED, fontWeight: 500 }}>System Logs</Typography>
             </Box>
 
             <Box onClick={() => { localStorage.removeItem('token'); navigate('/login'); }} sx={{
-              display: 'flex', alignItems: 'center', gap: 1.25, px: 1.25, py: 0.7,
+              display: 'flex', alignItems: 'center', gap: 1.25, px: 1.25, py: 0.8,
               borderRadius: '7px', cursor: 'pointer',
-              '&:hover': { bgcolor: 'rgba(255,69,101,0.08)' },
+              '&:hover': { bgcolor: 'rgba(220,53,69,0.08)' },
             }}>
-              <LogoutIcon sx={{ fontSize: 13, color: '#FF4565' }} />
-              <Typography sx={{ fontSize: '0.71rem', color: '#FF4565', fontFamily: '"Figtree", sans-serif', fontWeight: 500 }}>Logout</Typography>
+              <LogoutIcon sx={{ fontSize: 16, color: '#DC3545' }} />
+              <Typography sx={{ fontSize: '0.8rem', color: '#DC3545', fontWeight: 600 }}>Logout</Typography>
             </Box>
           </Box>
         </Box>
       )}
 
       {/* ── RIGHT: Topbar + Content ── */}
-      <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: '100vh', overflow: 'hidden' }}>
+      <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
 
         {/* TOPBAR */}
         <Box sx={{
-          height: 58, display: 'flex', alignItems: 'center',
+          position: 'sticky', top: 0, zIndex: 1100,
+          height: 64, display: 'flex', alignItems: 'center',
           px: { xs: 2, md: 3 }, gap: 1.5,
           bgcolor: TOP_BG,
-          borderBottom: '1px solid rgba(168,255,62,0.07)',
+          borderBottom: '1px solid rgba(0,0,0,0.06)',
           flexShrink: 0,
-          backdropFilter: 'blur(12px)',
         }}>
 
           {/* Search */}
           <Box sx={{
-            flex: 1, maxWidth: 360, display: 'flex', alignItems: 'center',
-            gap: 1, px: 1.5, py: 0.7, borderRadius: '10px',
-            backgroundColor: 'rgba(168,255,62,0.04)',
-            border: '1px solid rgba(168,255,62,0.1)',
-            transition: 'border-color 0.2s',
-            '&:focus-within': { borderColor: 'rgba(168,255,62,0.3)' },
+            flex: 1, maxWidth: 400, display: 'flex', alignItems: 'center',
+            gap: 1, px: 1.5, py: 0.8, borderRadius: '10px',
+            backgroundColor: '#F3F4F6',
+            border: '1px solid transparent',
+            transition: 'border-color 0.2s, background-color 0.2s',
+            '&:focus-within': { borderColor: 'rgba(26,127,55,0.3)', backgroundColor: '#FFFFFF' },
           }}>
-            <SearchIcon sx={{ fontSize: 14, color: '#3E5A48' }} />
+            <SearchIcon sx={{ fontSize: 18, color: '#6B7280' }} />
             <InputBase
               placeholder="Search sensors, nodes, field ID…"
               sx={{
-                flex: 1, fontSize: '0.74rem', color: '#C8E8D2',
-                fontFamily: '"Figtree", sans-serif',
-                '& input::placeholder': { color: '#3E5A48', opacity: 1 },
+                flex: 1, fontSize: '0.85rem', color: '#1F2937',
+                fontFamily: '"Inter", sans-serif',
+                '& input::placeholder': { color: '#9CA3AF', opacity: 1 },
               }}
             />
           </Box>
@@ -273,56 +250,45 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           {/* Live status pill */}
           <Box sx={{
             display: { xs: 'none', md: 'flex' }, alignItems: 'center', gap: 0.75,
-            px: 1.25, py: 0.5, borderRadius: '20px',
-            bgcolor: 'rgba(168,255,62,0.06)', border: '1px solid rgba(168,255,62,0.12)',
+            px: 1.5, py: 0.6, borderRadius: '20px',
+            bgcolor: 'rgba(40,167,69,0.1)', border: '1px solid rgba(40,167,69,0.2)',
           }}>
-            <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: '#A8FF3E',
+            <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: '#28A745',
               animation: 'pulse-dot 2s ease-in-out infinite' }} />
-            <Typography sx={{ fontSize: '0.62rem', fontWeight: 700, color: '#A8FF3E', fontFamily: '"DM Mono", monospace', letterSpacing: '0.08em' }}>
+            <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: '#1A7F37', letterSpacing: '0.05em' }}>
               LIVE · ACTIVE
             </Typography>
           </Box>
 
-          <IconButton size="small" sx={{ color: '#4A6E55', '&:hover': { color: '#A8FF3E' }, transition: 'color 0.2s' }}>
-            <Badge badgeContent={3} sx={{ '& .MuiBadge-badge': { bgcolor: '#FF4565', fontSize: '0.48rem', minWidth: 14, height: 14, padding: 0 } }}>
-              <AlertsIcon sx={{ fontSize: 19 }} />
+          <IconButton size="small" onClick={toggleLang} sx={{ color: '#6B7280', '&:hover': { color: '#1A7F37', bgcolor: 'rgba(26,127,55,0.08)' } }} title="Toggle Language (English/Hindi)">
+            <LanguageIcon sx={{ fontSize: 22 }} />
+            <Typography sx={{ fontSize: '0.6rem', ml: 0.5, fontWeight: 700 }}>{lang.toUpperCase()}</Typography>
+          </IconButton>
+          <IconButton size="small" sx={{ color: '#6B7280', '&:hover': { color: '#1A7F37', bgcolor: 'rgba(26,127,55,0.08)' } }}>
+            <Badge badgeContent={3} sx={{ '& .MuiBadge-badge': { bgcolor: '#DC3545', fontSize: '0.6rem', color: '#fff' } }}>
+              <AlertsIcon sx={{ fontSize: 22 }} />
             </Badge>
           </IconButton>
-          <IconButton size="small" sx={{ color: '#4A6E55', '&:hover': { color: '#A8FF3E' }, transition: 'color 0.2s' }}>
-            <SupportIcon sx={{ fontSize: 19 }} />
+          <IconButton size="small" sx={{ color: '#6B7280', '&:hover': { color: '#1A7F37', bgcolor: 'rgba(26,127,55,0.08)' } }}>
+            <SupportIcon sx={{ fontSize: 22 }} />
           </IconButton>
-          <IconButton size="small" onClick={() => navigate('/profile')} sx={{ color: '#4A6E55', '&:hover': { color: '#A8FF3E' }, transition: 'color 0.2s' }}>
-            <SettingsIcon sx={{ fontSize: 19 }} />
+          <IconButton size="small" onClick={() => navigate('/profile')} sx={{ color: '#6B7280', '&:hover': { color: '#1A7F37', bgcolor: 'rgba(26,127,55,0.08)' } }}>
+            <SettingsIcon sx={{ fontSize: 22 }} />
           </IconButton>
-
-          {/* Weather chip */}
-          <Box sx={{
-            display: { xs: 'none', md: 'flex' }, alignItems: 'center', gap: 0.85,
-            px: 1.25, py: 0.5, borderRadius: '10px',
-            border: '1px solid rgba(255,255,255,0.06)', bgcolor: 'rgba(255,255,255,0.03)',
-          }}>
-            <Typography sx={{ fontSize: '0.9rem', lineHeight: 1 }}>🌤</Typography>
-            <Box>
-              <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#D8EDE0', fontFamily: '"DM Mono", monospace', lineHeight: 1 }}>24°C</Typography>
-              <Typography sx={{ fontSize: '0.48rem', color: '#4A6E55', fontFamily: '"DM Mono", monospace', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Outdoor</Typography>
-            </Box>
-          </Box>
 
           <Avatar onClick={() => navigate('/profile')} sx={{
-            width: 32, height: 32,
-            background: 'linear-gradient(135deg, rgba(168,255,62,0.15), rgba(168,255,62,0.05))',
-            border: '1.5px solid rgba(168,255,62,0.25)',
-            fontSize: '0.7rem', color: '#A8FF3E', fontWeight: 700, cursor: 'pointer',
-            fontFamily: '"Syne", sans-serif',
+            width: 36, height: 36, ml: 1,
+            background: 'linear-gradient(135deg, #4CAF50, #1A7F37)',
+            fontSize: '0.9rem', color: '#FFFFFF', fontWeight: 700, cursor: 'pointer',
           }}>
-            F
+            RS
           </Avatar>
         </Box>
 
         {/* CONTENT */}
         <Box component="main" sx={{
-          flex: 1, overflowY: 'auto', overflowX: 'hidden',
-          px: { xs: 2, md: 3 }, py: { xs: 2, md: 2.5 },
+          flex: 1,
+          px: { xs: 2, md: 3 }, py: { xs: 2, md: 3 },
           pb: { xs: '90px', md: '28px' },
           bgcolor: CONTENT,
         }}>
@@ -334,30 +300,30 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       {!isDesktop && (
         <Box sx={{
           position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 1100,
-          borderTop: '1px solid rgba(168,255,62,0.08)',
-          backgroundColor: '#0A1410',
-          boxShadow: '0 -2px 24px rgba(0,0,0,0.5)',
+          borderTop: '1px solid rgba(0,0,0,0.06)',
+          backgroundColor: '#FFFFFF',
+          boxShadow: '0 -2px 12px rgba(0,0,0,0.05)',
         }}>
           <BottomNavigation
             value={mobileCurrent === -1 ? false : mobileCurrent}
             onChange={(_e, v) => navigate(mobileNav[v].path)}
             showLabels
-            sx={{ height: 62, backgroundColor: 'transparent' }}
+            sx={{ height: 64, backgroundColor: 'transparent' }}
           >
             {mobileNav.map((item, idx) => {
               const Icon = item.icon;
               const isActive = mobileCurrent === idx;
               return (
-                <BottomNavigationAction key={item.id} label={item.label} icon={<Icon />}
+                <BottomNavigationAction key={item.id} label={t(item.id)} icon={<Icon />}
                   sx={{
-                    color: '#3E5A48', minWidth: 'auto', padding: '10px 0 8px',
-                    '&.Mui-selected': { color: '#A8FF3E' },
+                    color: '#6B7280', minWidth: 'auto', padding: '10px 0 8px',
+                    '&.Mui-selected': { color: '#1A7F37' },
                     '& .MuiBottomNavigationAction-label': {
-                      fontFamily: '"Figtree", sans-serif',
-                      fontSize: '0.58rem', fontWeight: isActive ? 600 : 400,
-                      '&.Mui-selected': { fontSize: '0.58rem' },
+                      fontFamily: '"Inter", sans-serif',
+                      fontSize: '0.65rem', fontWeight: isActive ? 600 : 500,
+                      '&.Mui-selected': { fontSize: '0.65rem' },
                     },
-                    '& .MuiSvgIcon-root': { fontSize: isActive ? '1.3rem' : '1.15rem' },
+                    '& .MuiSvgIcon-root': { fontSize: isActive ? '1.4rem' : '1.2rem' },
                   }}
                 />
               );

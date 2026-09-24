@@ -85,7 +85,7 @@ const SummaryCard: React.FC<SummaryCardProps> = ({ data }) => {
               letterSpacing: '0.08em',
               textTransform: 'uppercase',
               color: alpha(sensorColor, 0.85),
-              fontFamily: '"Plus Jakarta Sans", sans-serif',
+              fontFamily: '"Inter", sans-serif',
             }}
           >
             {data.title}

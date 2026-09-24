@@ -20,18 +20,18 @@ import {
 import { MotionNotificationService } from '../../services/motionNotificationService';
 
 // ── Design Tokens (Deep Earth Nexus) ─────────────────────
-const ACCENT  = '#A8FF3E';
-const TEAL    = '#00E5C6';
-const AMBER   = '#FFB830';
-const RED     = '#FF4565';
-const BLUE    = '#4DA8FF';
-const PURPLE  = '#B06EFF';
-const TEXT    = '#D8EDE0';
-const MUTED   = '#4A6E55';
-const CARD    = '#0A1410';
-const CARD_E  = '#0F1C14';
-const BG      = '#060C08';
-const BORDER  = 'rgba(168,255,62,0.07)';
+const ACCENT  = '#1A7F37';
+const TEAL    = '#20C997';
+const AMBER   = '#F59E0B';
+const RED     = '#EF4444';
+const BLUE    = '#3B82F6';
+const PURPLE  = '#8B5CF6';
+const TEXT    = '#111827';
+const MUTED   = '#6B7280';
+const CARD    = '#FFFFFF';
+const CARD_E  = '#F9FAFB';
+const BG      = '#F5F8F6';
+const BORDER  = 'rgba(0,0,0,0.08)';
 const SHADOW  = '0 2px 20px rgba(0,0,0,0.55)';
 
 // ── Types ─────────────────────────────────────────────────
@@ -187,7 +187,7 @@ const SecurityCamera: React.FC = () => {
       <Box sx={{ mb: 3, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap' }}>
         <Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 0.4 }}>
-            <Typography sx={{ fontFamily: '"Syne", sans-serif', fontWeight: 800, fontSize: { xs: '1.5rem', md: '1.85rem' }, color: TEXT, letterSpacing: '-0.03em', lineHeight: 1.1 }}>
+            <Typography sx={{ fontFamily: '"Inter", sans-serif', fontWeight: 800, fontSize: { xs: '1.5rem', md: '1.85rem' }, color: TEXT, letterSpacing: '-0.03em', lineHeight: 1.1 }}>
               Intelligence Center
             </Typography>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6, px: 1, py: 0.35, borderRadius: '20px', bgcolor: alpha(ACCENT, 0.08), border: `1px solid ${alpha(ACCENT, 0.18)}` }}>
@@ -197,7 +197,7 @@ const SecurityCamera: React.FC = () => {
               </Typography>
             </Box>
           </Box>
-          <Typography sx={{ fontSize: '0.8rem', color: MUTED, fontFamily: '"Figtree", sans-serif' }}>
+          <Typography sx={{ fontSize: '0.8rem', color: MUTED, fontFamily: '"Inter", sans-serif' }}>
             Active Intelligence · System & field diagnostics
           </Typography>
         </Box>
@@ -285,7 +285,7 @@ const SecurityCamera: React.FC = () => {
 
                     <Box sx={{ flex: 1, minWidth: 0 }}>
                       <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1, mb: 0.5 }}>
-                        <Typography sx={{ fontSize: '0.88rem', fontWeight: 700, color: TEXT, fontFamily: '"Syne", sans-serif', lineHeight: 1.3 }}>
+                        <Typography sx={{ fontSize: '0.88rem', fontWeight: 700, color: TEXT, fontFamily: '"Inter", sans-serif', lineHeight: 1.3 }}>
                           {alert.title}
                         </Typography>
                         <Typography sx={{ fontSize: '0.58rem', color: MUTED, fontFamily: '"DM Mono", monospace', flexShrink: 0 }}>
@@ -293,7 +293,7 @@ const SecurityCamera: React.FC = () => {
                         </Typography>
                       </Box>
 
-                      <Typography sx={{ fontSize: '0.74rem', color: alpha(TEXT, 0.55), fontFamily: '"Figtree", sans-serif', lineHeight: 1.6, mb: 1.5 }}>
+                      <Typography sx={{ fontSize: '0.74rem', color: alpha(TEXT, 0.55), fontFamily: '"Inter", sans-serif', lineHeight: 1.6, mb: 1.5 }}>
                         {alert.description}
                       </Typography>
 
@@ -344,8 +344,8 @@ const SecurityCamera: React.FC = () => {
                   <CheckIcon sx={{ fontSize: 18, color: ACCENT }} />
                 </Box>
                 <Box>
-                  <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: ACCENT, fontFamily: '"Figtree", sans-serif' }}>All clear</Typography>
-                  <Typography sx={{ fontSize: '0.66rem', color: MUTED, fontFamily: '"Figtree", sans-serif' }}>No alerts matching current filter</Typography>
+                  <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: ACCENT, fontFamily: '"Inter", sans-serif' }}>All clear</Typography>
+                  <Typography sx={{ fontSize: '0.66rem', color: MUTED, fontFamily: '"Inter", sans-serif' }}>No alerts matching current filter</Typography>
                 </Box>
               </Box>
             )}
@@ -358,7 +358,7 @@ const SecurityCamera: React.FC = () => {
           {/* System Health */}
           <Box sx={{ bgcolor: CARD, borderRadius: '16px', border: `1px solid ${BORDER}`, boxShadow: SHADOW, overflow: 'hidden' }}>
             <Box sx={{ px: 2.25, pt: 2, pb: 1.75, borderBottom: `1px solid ${BORDER}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Typography sx={{ fontFamily: '"Syne", sans-serif', fontWeight: 700, fontSize: '0.9rem', color: TEXT }}>System Health</Typography>
+              <Typography sx={{ fontFamily: '"Inter", sans-serif', fontWeight: 700, fontSize: '0.9rem', color: TEXT }}>System Health</Typography>
               <Box sx={{ textAlign: 'right' }}>
                 <Typography sx={{ fontFamily: '"DM Mono", monospace', fontSize: '1.2rem', fontWeight: 700, color: ACCENT, lineHeight: 1,
                   textShadow: `0 0 16px ${alpha(ACCENT, 0.4)}` }}>99.98%</Typography>
@@ -386,14 +386,14 @@ const SecurityCamera: React.FC = () => {
           {/* Active Resource Loads */}
           <Box sx={{ bgcolor: CARD, borderRadius: '16px', border: `1px solid ${BORDER}`, boxShadow: SHADOW, overflow: 'hidden' }}>
             <Box sx={{ px: 2.25, pt: 2, pb: 1.75, borderBottom: `1px solid ${BORDER}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Typography sx={{ fontFamily: '"Syne", sans-serif', fontWeight: 700, fontSize: '0.9rem', color: TEXT }}>Active Resource Loads</Typography>
+              <Typography sx={{ fontFamily: '"Inter", sans-serif', fontWeight: 700, fontSize: '0.9rem', color: TEXT }}>Active Resource Loads</Typography>
             </Box>
             <Box sx={{ p: 1.75 }}>
               {resourceLoads.map((r, i) => (
                 <Box key={i} sx={{ py: 1.1, borderBottom: i < resourceLoads.length - 1 ? `1px solid ${BORDER}` : 'none' }}>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', mb: 0.65 }}>
                     <Box>
-                      <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, color: TEXT, fontFamily: '"Figtree", sans-serif', lineHeight: 1.2 }}>{r.label}</Typography>
+                      <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, color: TEXT, fontFamily: '"Inter", sans-serif', lineHeight: 1.2 }}>{r.label}</Typography>
                       <Typography sx={{ fontSize: '0.56rem', color: MUTED, fontFamily: '"DM Mono", monospace' }}>{r.sub}</Typography>
                     </Box>
                     <Typography sx={{ fontFamily: '"DM Mono", monospace', fontSize: '0.72rem', fontWeight: 700, color: r.color }}>{r.pct}%</Typography>
@@ -427,7 +427,7 @@ const SecurityCamera: React.FC = () => {
               height: 140, position: 'relative', overflow: 'hidden',
               background: 'linear-gradient(160deg, #081208 0%, #0c1e0d 50%, #091508 100%)',
             }}>
-              <Box sx={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 55% 40%, rgba(168,255,62,0.07) 0%, transparent 60%)' }} />
+              <Box sx={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 55% 40%, rgba(0,0,0,0.08) 0%, transparent 60%)' }} />
               {/* Scanline */}
               <Box sx={{ position: 'absolute', left: 0, right: 0, height: 1.5, background: `linear-gradient(90deg, transparent, ${alpha(ACCENT, 0.25)}, transparent)`,
                 animation: 'scan-line 3s linear infinite', top: 0 }} />
@@ -455,7 +455,7 @@ const SecurityCamera: React.FC = () => {
               </Box>
             </Box>
             <Box sx={{ p: 1.75, borderTop: `1px solid ${BORDER}` }}>
-              <Typography sx={{ fontSize: '0.76rem', fontWeight: 700, color: TEXT, fontFamily: '"Figtree", sans-serif', mb: 0.25 }}>
+              <Typography sx={{ fontSize: '0.76rem', fontWeight: 700, color: TEXT, fontFamily: '"Inter", sans-serif', mb: 0.25 }}>
                 {cameras[0].name}
               </Typography>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
@@ -472,16 +472,16 @@ const SecurityCamera: React.FC = () => {
       {/* Fullscreen camera dialog */}
       <Dialog open={!!fullscreenCamera} onClose={() => setFullscreenCamera(null)} maxWidth="md" fullWidth
         PaperProps={{ sx: { bgcolor: CARD, borderRadius: '16px', border: `1px solid ${BORDER}` } }}>
-        <DialogTitle sx={{ fontFamily: '"Syne", sans-serif', fontWeight: 700, color: TEXT, fontSize: '1rem', pb: 1 }}>
+        <DialogTitle sx={{ fontFamily: '"Inter", sans-serif', fontWeight: 700, color: TEXT, fontSize: '1rem', pb: 1 }}>
           {fullscreenCamera?.name} — Visual Feed
         </DialogTitle>
         <DialogContent sx={{ p: 0 }}>
           <Box sx={{ height: 320, background: 'linear-gradient(160deg, #081208, #0c1e0d)',
             display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-            <Box sx={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 50% 40%, rgba(168,255,62,0.07) 0%, transparent 60%)' }} />
+            <Box sx={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 50% 40%, rgba(0,0,0,0.08) 0%, transparent 60%)' }} />
             <Box sx={{ textAlign: 'center' }}>
               <VideocamOffIcon sx={{ fontSize: 52, color: alpha('#fff', 0.2), mb: 1 }} />
-              <Typography sx={{ fontSize: '0.82rem', color: alpha(TEXT, 0.5), fontFamily: '"Figtree", sans-serif' }}>
+              <Typography sx={{ fontSize: '0.82rem', color: alpha(TEXT, 0.5), fontFamily: '"Inter", sans-serif' }}>
                 Camera offline — probe not connected
               </Typography>
               <Typography sx={{ fontSize: '0.66rem', color: MUTED, fontFamily: '"DM Mono", monospace', mt: 0.5 }}>
@@ -495,7 +495,7 @@ const SecurityCamera: React.FC = () => {
             px: 1.75, py: 0.7, borderRadius: '8px', cursor: 'pointer', border: `1px solid ${BORDER}`,
             transition: 'border-color 0.15s', '&:hover': { borderColor: alpha(TEXT, 0.15) },
           }}>
-            <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, color: MUTED, fontFamily: '"Figtree", sans-serif' }}>Close</Typography>
+            <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, color: MUTED, fontFamily: '"Inter", sans-serif' }}>Close</Typography>
           </Box>
         </DialogActions>
       </Dialog>
@@ -503,7 +503,7 @@ const SecurityCamera: React.FC = () => {
       {/* Motion snackbar */}
       <Snackbar open={motionSnack.open} autoHideDuration={4000} onClose={() => setMotionSnack({ open: false, msg: '' })} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
         <Alert severity="success" onClose={() => setMotionSnack({ open: false, msg: '' })}
-          sx={{ fontFamily: '"Figtree", sans-serif', borderRadius: '10px', bgcolor: alpha(ACCENT, 0.12), color: ACCENT, border: `1px solid ${alpha(ACCENT, 0.25)}`,
+          sx={{ fontFamily: '"Inter", sans-serif', borderRadius: '10px', bgcolor: alpha(ACCENT, 0.12), color: ACCENT, border: `1px solid ${alpha(ACCENT, 0.25)}`,
             '& .MuiAlert-icon': { color: ACCENT } }}>
           {motionSnack.msg}
         </Alert>

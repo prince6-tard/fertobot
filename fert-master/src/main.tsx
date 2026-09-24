@@ -8,6 +8,7 @@ import { theme } from './utils/theme';
 import './styles/mobile.css';
 import App from './App';
 import ErrorBoundary from './components/ErrorBoundary';
+import { LanguageProvider } from './context/LanguageContext';
 
 // Create a client for React Query
 const queryClient = new QueryClient({
@@ -25,10 +26,12 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <ThemeProvider theme={theme}>
-          <CssBaseline />
-          <BrowserRouter>
-            <App />
-          </BrowserRouter>
+          <LanguageProvider>
+            <CssBaseline />
+            <BrowserRouter>
+              <App />
+            </BrowserRouter>
+          </LanguageProvider>
         </ThemeProvider>
       </QueryClientProvider>
     </ErrorBoundary>

@@ -78,6 +78,148 @@ interface DashboardProbe {
   };
 }
 
+interface ZoneCardProps {
+  zone: IrrigationZone;
+  isSendingCommand: boolean;
+  onToggle: (zoneId: string, turnOn: boolean, zoneUuid?: string) => void;
+  onEdit: (zone: IrrigationZone) => void;
+}
+
+// Hoisted to module scope so it isn't re-created (and its subtree remounted)
+// on every parent render / 10 s poll. State lives in the parent and is passed in.
+const ZoneCard = ({ zone, isSendingCommand, onToggle, onEdit }: ZoneCardProps) => (
+  <Card
+    elevation={0}
+    sx={{
+      borderRadius: 1,
+      border: '1px solid',
+      borderColor: colors.neutral[200],
+      height: '100%'
+    }}
+  >
+    <CardContent sx={{ p: 3 }}>
+      {/* Header */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3 }}>
+        <Box sx={{ flex: 1 }}>
+          <Typography variant="h6" sx={{ fontWeight: 500, mb: 0.5, fontSize: '1rem', lineHeight: 1.5 }}>
+            {zone.name}
+          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            {zone.status === 'active' ? (
+              <PlayIcon sx={{ fontSize: 16, color: 'rgba(76, 175, 80, 0.8)' }} />
+            ) : zone.status === 'scheduled' ? (
+              <ScheduleIcon sx={{ fontSize: 16, color: 'rgba(255, 152, 0, 0.8)' }} />
+            ) : (
+              <StopIcon sx={{ fontSize: 16, color: colors.neutral[500] }} />
+            )}
+            <Typography variant="body2" sx={{
+              fontSize: '0.875rem',
+              fontWeight: 500,
+              color: zone.status === 'active' ? 'rgba(76, 175, 80, 0.9)' :
+                     zone.status === 'scheduled' ? 'rgba(255, 152, 0, 0.9)' : colors.neutral[600]
+            }}>
+              {zone.status}
+            </Typography>
+          </Box>
+        </Box>
+        <IconButton size="small" onClick={() => onEdit(zone)}>
+          <SettingsIcon sx={{ fontSize: 18 }} />
+        </IconButton>
+      </Box>
+
+      {/* Progress Bar for Active Zone */}
+      {zone.status === 'active' && zone.progress ? (
+        <Box sx={{ mb: 3 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+            <Typography variant="body2" sx={{ fontSize: '0.875rem', fontWeight: 500 }}>running</Typography>
+            <Typography variant="body2" sx={{ fontSize: '0.875rem', color: colors.neutral[600] }}>{zone.progress}%</Typography>
+          </Box>
+          <LinearProgress
+            variant="determinate"
+            value={zone.progress}
+            sx={{
+              height: 6,
+              borderRadius: 1,
+              backgroundColor: colors.neutral[200],
+              '& .MuiLinearProgress-bar': { backgroundColor: 'rgba(76, 175, 80, 0.8)' }
+            }}
+          />
+        </Box>
+      ) : null}
+
+      {/* Horizontal Metrics */}
+      <Grid container spacing={2} sx={{ mb: 1 }}>
+        <Grid item xs={6}>
+          <Box sx={{ textAlign: 'center', p: 2, backgroundColor: colors.neutral[50], borderRadius: 1 }}>
+            <Typography variant="h6" sx={{ fontSize: '1rem', fontWeight: 500, color: colors.neutral[700] }}>
+              {zone.moistureLevel}%
+            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>moisture</Typography>
+          </Box>
+        </Grid>
+        <Grid item xs={6}>
+          <Box sx={{ textAlign: 'center', p: 2, backgroundColor: colors.neutral[50], borderRadius: 1 }}>
+            <Typography variant="h6" sx={{ fontSize: '1rem', fontWeight: 500, color: colors.neutral[700] }}>
+              {zone.flowRate}l/min
+            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>flow rate</Typography>
+          </Box>
+        </Grid>
+      </Grid>
+
+      {/* Action Buttons */}
+      <Box sx={{ display: 'flex', gap: 2, marginTop: 2 }}>
+        <Button
+          variant="contained"
+          startIcon={<PlayIcon sx={{ fontSize: 16 }} />}
+          onClick={() => onToggle(zone.id, true, zone.uuid)}
+          disabled={isSendingCommand}
+          fullWidth
+          sx={{
+            py: 1.5,
+            fontSize: '0.875rem',
+            textTransform: 'none',
+            borderRadius: 1,
+            backgroundColor: colors.primary[500],
+          }}
+        >
+          start pump
+        </Button>
+        <Button
+          variant="outlined"
+          startIcon={<StopIcon sx={{ fontSize: 16 }} />}
+          onClick={() => onToggle(zone.id, false, zone.uuid)}
+          disabled={isSendingCommand}
+          fullWidth
+          sx={{
+            py: 1.5,
+            fontSize: '0.875rem',
+            textTransform: 'none',
+            borderRadius: 1,
+            borderColor: colors.neutral[300],
+            color: colors.neutral[700],
+          }}
+        >
+          stop pump
+        </Button>
+      </Box>
+
+      {/* Status Info */}
+      <Box sx={{ mt: 2, pt: 2, borderTop: `1px solid ${colors.neutral[200]}` }}>
+        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+          last irrigation: 3.12.2025 14:37 • probe disconnected 2 days ago
+        </Typography>
+      </Box>
+    </CardContent>
+  </Card>
+);
+
+// Hoisted (mirrors the TabPanel in ProbeManagement.tsx).
+const TabPanel = ({ children, value, index }: { children: React.ReactNode; value: number; index: number }) => (
+  <Box hidden={value !== index} sx={{ pt: 2 }}>
+    {value === index && children}
+  </Box>
+);
 
 
 const SprinklerControl: React.FC = () => {
@@ -127,19 +269,36 @@ const SprinklerControl: React.FC = () => {
           return;
         }
 
-        const mappedZones: IrrigationZone[] = probes.map((probe) => ({
-          id: probe._id,
-          uuid: probe.uuid,
-          name: probe.name || probe.uuid,
-          status: probe.status === 'online' ? 'inactive' : 'scheduled',
-          duration: 30,
-          flowRate: 0,
-          lastRun: new Date().toISOString(),
-          moistureLevel: Number(probe.lastReading?.soilMoisture ?? 0),
-          progress: 0,
-        }));
+        setZones((prev) => {
+          const prevById = new Map(prev.map(z => [z.id, z]));
+          // Index incoming probes by whatever key the UI currently uses as id.
+          // Live probes use their _id as zone id (see mapping below).
+          const prevByUuid = new Map(prev.map(z => [z.uuid, z]));
 
-        setZones(mappedZones);
+          return probes.map((probe) => {
+            const id = probe._id;
+            const uuid = probe.uuid;
+            const existing = prevById.get(id) ?? prevByUuid.get(uuid);
+
+            // Merge live metrics into the existing zone WITHOUT clobbering the
+            // optimistic 'active' status/progress set by a button press. The poll
+            // only reflects probe connectivity, not whether the pump is running.
+            const liveStatus: IrrigationZone['status'] =
+              probe.status === 'online' ? 'inactive' : 'scheduled';
+
+            return {
+              id,
+              uuid,
+              name: probe.name || uuid,
+              status: existing?.status === 'active' ? 'active' : liveStatus,
+              duration: existing?.duration ?? 30,
+              flowRate: 0,
+              lastRun: new Date().toISOString(),
+              moistureLevel: Number(probe.lastReading?.soilMoisture ?? 0),
+              progress: existing?.status === 'active' ? (existing?.progress ?? 0) : 0,
+            };
+          });
+        });
       } catch (_error) {
         // Keep static fallback zone for UI if live probes fail to load.
       }
@@ -196,139 +355,6 @@ const SprinklerControl: React.FC = () => {
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
   };
-
-  const ZoneCard = ({ zone }: { zone: IrrigationZone }) => (
-    <Card 
-      elevation={0}
-      sx={{ 
-        borderRadius: 1,
-        border: '1px solid',
-        borderColor: colors.neutral[200],
-        height: '100%'
-      }}
-    >
-      <CardContent sx={{ p: 3 }}>
-        {/* Header */}
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3 }}>
-          <Box sx={{ flex: 1 }}>
-            <Typography variant="h6" sx={{ fontWeight: 500, mb: 0.5, fontSize: '1rem', lineHeight: 1.5 }}>
-              {zone.name}
-            </Typography>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              {zone.status === 'active' ? (
-                <PlayIcon sx={{ fontSize: 16, color: 'rgba(76, 175, 80, 0.8)' }} />
-              ) : zone.status === 'scheduled' ? (
-                <ScheduleIcon sx={{ fontSize: 16, color: 'rgba(255, 152, 0, 0.8)' }} />
-              ) : (
-                <StopIcon sx={{ fontSize: 16, color: colors.neutral[500] }} />
-              )}
-              <Typography variant="body2" sx={{ 
-                fontSize: '0.875rem', 
-                fontWeight: 500,
-                color: zone.status === 'active' ? 'rgba(76, 175, 80, 0.9)' : 
-                       zone.status === 'scheduled' ? 'rgba(255, 152, 0, 0.9)' : colors.neutral[600]
-              }}>
-                {zone.status}
-              </Typography>
-            </Box>
-          </Box>
-          <IconButton size="small" onClick={() => setEditingZone(zone)}>
-            <SettingsIcon sx={{ fontSize: 18 }} />
-          </IconButton>
-        </Box>
-
-        {/* Progress Bar for Active Zone */}
-        {zone.status === 'active' && zone.progress && (
-          <Box sx={{ mb: 3 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-              <Typography variant="body2" sx={{ fontSize: '0.875rem', fontWeight: 500 }}>running</Typography>
-              <Typography variant="body2" sx={{ fontSize: '0.875rem', color: colors.neutral[600] }}>{zone.progress}%</Typography>
-            </Box>
-            <LinearProgress 
-              variant="determinate" 
-              value={zone.progress} 
-              sx={{ 
-                height: 6, 
-                borderRadius: 1,
-                backgroundColor: colors.neutral[200],
-                '& .MuiLinearProgress-bar': { backgroundColor: 'rgba(76, 175, 80, 0.8)' }
-              }}
-            />
-          </Box>
-        )}
-
-        {/* Horizontal Metrics */}
-        <Grid container spacing={2} sx={{ mb: 1 }}>
-          <Grid item xs={6}>
-            <Box sx={{ textAlign: 'center', p: 2, backgroundColor: colors.neutral[50], borderRadius: 1 }}>
-              <Typography variant="h6" sx={{ fontSize: '1rem', fontWeight: 500, color: colors.neutral[700] }}>
-                {zone.moistureLevel}%
-              </Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>moisture</Typography>
-            </Box>
-          </Grid>
-          <Grid item xs={6}>
-            <Box sx={{ textAlign: 'center', p: 2, backgroundColor: colors.neutral[50], borderRadius: 1 }}>
-              <Typography variant="h6" sx={{ fontSize: '1rem', fontWeight: 500, color: colors.neutral[700] }}>
-                {zone.flowRate}l/min
-              </Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>flow rate</Typography>
-            </Box>
-          </Grid>
-        </Grid>
-
-        {/* Action Buttons */}
-        <Box sx={{ display: 'flex', gap: 2, marginTop: 2 }}>
-          <Button
-            variant="contained"
-            startIcon={<PlayIcon sx={{ fontSize: 16 }} />}
-            onClick={() => handleZoneToggle(zone.id, true, zone.uuid)}
-            disabled={isSendingCommand}
-            fullWidth
-            sx={{
-              py: 1.5,
-              fontSize: '0.875rem',
-              textTransform: 'none',
-              borderRadius: 1,
-              backgroundColor: colors.primary[500],
-            }}
-          >
-            start pump
-          </Button>
-          <Button
-            variant="outlined"
-            startIcon={<StopIcon sx={{ fontSize: 16 }} />}
-            onClick={() => handleZoneToggle(zone.id, false, zone.uuid)}
-            disabled={isSendingCommand}
-            fullWidth
-            sx={{
-              py: 1.5,
-              fontSize: '0.875rem',
-              textTransform: 'none',
-              borderRadius: 1,
-              borderColor: colors.neutral[300],
-              color: colors.neutral[700],
-            }}
-          >
-            stop pump
-          </Button>
-        </Box>
-
-        {/* Status Info */}
-        <Box sx={{ mt: 2, pt: 2, borderTop: `1px solid ${colors.neutral[200]}` }}>
-          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
-            last irrigation: 3.12.2025 14:37 • probe disconnected 2 days ago
-          </Typography>
-        </Box>
-      </CardContent>
-    </Card>
-  );
-
-  const TabPanel = ({ children, value, index }: any) => (
-    <Box hidden={value !== index} sx={{ pt: 2 }}>
-      {value === index && children}
-    </Box>
-  );
 
   return (
     <div style={{ width: '100%', maxWidth: '100%', overflow: 'hidden', padding: '16px' }}>
@@ -438,7 +464,12 @@ const SprinklerControl: React.FC = () => {
         <Grid container spacing={3}>
           {zones.map((zone) => (
             <Grid item xs={12} key={zone.id}>
-              <ZoneCard zone={zone} />
+              <ZoneCard
+                zone={zone}
+                isSendingCommand={isSendingCommand}
+                onToggle={handleZoneToggle}
+                onEdit={setEditingZone}
+              />
             </Grid>
           ))}
         </Grid>

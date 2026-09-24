@@ -4,6 +4,7 @@ import { Mic, MicOff, Send } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface Message {
+  id: number;
   role: 'user' | 'assistant';
   text: string;
   time: string;
@@ -20,13 +21,25 @@ const QUICK_QUESTIONS = [
 const AMBER = '#F4A261';
 const LIVE_GREEN = '#52D080';
 
+// Monotonic id for stable React keys (avoids array-index keys, which break when
+// messages are added/removed). Module-scoped so it survives re-renders.
+let messageIdSeq = 0;
+const nextMessageId = () => ++messageIdSeq;
+// Keep the conversation context we send to Gemini bounded — old turns add cost
+// and latency without helping the model much. Last 10 turns = 5 user/model pairs.
+const MAX_HISTORY_TURNS = 10;
+
 // Extend window for webkit prefix
 declare global {
   interface Window {
-    SpeechRecognition: typeof SpeechRecognition;
-    webkitSpeechRecognition: typeof SpeechRecognition;
+    SpeechRecognition: any;
+    webkitSpeechRecognition: any;
   }
 }
+
+type SpeechRecognition = any;
+type SpeechRecognitionEvent = any;
+type SpeechRecognitionErrorEvent = any;
 
 const now = () =>
   new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
@@ -34,6 +47,7 @@ const now = () =>
 const VoiceChatbot: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([
     {
+      id: nextMessageId(),
       role: 'assistant',
       text: 'Namaskar! Main FertoBot assistant hoon 🌱 Aapki khet ki poori jaankari mere paas hai. Poochho kya jaanna hai!',
       time: now(),
@@ -95,7 +109,7 @@ const VoiceChatbot: React.FC = () => {
   const sendMessage = useCallback(async (text: string) => {
     if (!text.trim() || loading) return;
 
-    setMessages(prev => [...prev, { role: 'user', text: text.trim(), time: now() }]);
+    setMessages(prev => [...prev, { id: nextMessageId(), role: 'user', text: text.trim(), time: now() }]);
     setInput('');
     setLoading(true);
 
@@ -103,17 +117,17 @@ const VoiceChatbot: React.FC = () => {
       const res = await fetch('/api/assistant/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text.trim(), history }),
+        body: JSON.stringify({ message: text.trim(), history: history.slice(-MAX_HISTORY_TURNS) }),
       });
       const data = await res.json();
       const reply = data?.data?.reply || 'Kuch gadbad ho gayi, dobara try karein.';
 
-      setMessages(prev => [...prev, { role: 'assistant', text: reply, time: now() }]);
+      setMessages(prev => [...prev, { id: nextMessageId(), role: 'assistant', text: reply, time: now() }]);
       setHistory(prev => [
         ...prev,
-        { role: 'user', text: text.trim() },
-        { role: 'model', text: reply },
-      ]);
+        { role: 'user' as const, text: text.trim() },
+        { role: 'model' as const, text: reply },
+      ].slice(-MAX_HISTORY_TURNS));
 
       // Speak the reply if voice mode is active
       if (shouldRestartRef.current) {
@@ -121,7 +135,7 @@ const VoiceChatbot: React.FC = () => {
       }
     } catch {
       const errMsg = 'Network error. Dobara try karein.';
-      setMessages(prev => [...prev, { role: 'assistant', text: errMsg, time: now() }]);
+      setMessages(prev => [...prev, { id: nextMessageId(), role: 'assistant', text: errMsg, time: now() }]);
       if (shouldRestartRef.current) speak(errMsg);
     } finally {
       setLoading(false);
@@ -233,15 +247,15 @@ const VoiceChatbot: React.FC = () => {
   const voiceModeOn = voiceModeEnabled;
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 76px)', bgcolor: '#0D1F14', overflow: 'hidden' }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 76px)', bgcolor: '#F5F8F6', overflow: 'hidden' }}>
 
       {/* Header */}
       <Box
         sx={{
           px: 2, py: 1.5,
           display: 'flex', alignItems: 'center', gap: 1.5,
-          borderBottom: '1px solid rgba(255,255,255,0.06)',
-          backgroundColor: '#132B1A',
+          borderBottom: '1px solid rgba(0,0,0,0.06)',
+          backgroundColor: '#FFFFFF',
           flexShrink: 0,
         }}
       >
@@ -257,10 +271,10 @@ const VoiceChatbot: React.FC = () => {
           🌱
         </Box>
         <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#F0EDE6', fontFamily: '"Plus Jakarta Sans", sans-serif', lineHeight: 1.2 }}>
+          <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#111827', fontFamily: '"Inter", sans-serif', lineHeight: 1.2 }}>
             FertoBot Assistant
           </Typography>
-          <Typography sx={{ fontSize: '0.7rem', color: '#8FA89C', fontFamily: '"Plus Jakarta Sans", sans-serif' }}>
+          <Typography sx={{ fontSize: '0.7rem', color: '#6B7280', fontFamily: '"Inter", sans-serif' }}>
             Hindi mein poochho — live khet data se jawab milega
           </Typography>
         </Box>
@@ -276,7 +290,7 @@ const VoiceChatbot: React.FC = () => {
                 animation: 'pulse 1s infinite',
               }}
             />
-            <Typography sx={{ fontSize: '0.68rem', color: '#8FA89C', fontFamily: '"DM Mono", monospace' }}>
+            <Typography sx={{ fontSize: '0.68rem', color: '#6B7280', fontFamily: '"DM Mono", monospace' }}>
               {isSpeaking ? 'Bol raha hoon...' : 'Sun raha hoon...'}
             </Typography>
           </Box>
@@ -299,9 +313,9 @@ const VoiceChatbot: React.FC = () => {
         }}
       >
         <AnimatePresence initial={false}>
-          {messages.map((msg, i) => (
+          {messages.map((msg) => (
             <motion.div
-              key={i}
+              key={msg.id}
               initial={{ opacity: 0, y: 8, scale: 0.97 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               transition={{ duration: 0.18 }}
@@ -318,7 +332,7 @@ const VoiceChatbot: React.FC = () => {
                     boxShadow: `0 2px 12px ${alpha(AMBER, 0.08)}`,
                   }}
                 >
-                  <Typography sx={{ fontSize: '0.875rem', lineHeight: 1.5, color: '#F0EDE6', fontFamily: '"Plus Jakarta Sans", sans-serif' }}>
+                  <Typography sx={{ fontSize: '0.875rem', lineHeight: 1.5, color: '#111827', fontFamily: '"Inter", sans-serif' }}>
                     {msg.text}
                   </Typography>
                   <Typography sx={{ fontSize: '0.6rem', color: alpha(AMBER, 0.5), mt: 0.4, textAlign: 'right', fontFamily: '"DM Mono", monospace' }}>
@@ -330,19 +344,19 @@ const VoiceChatbot: React.FC = () => {
                   sx={{
                     maxWidth: '82%',
                     px: 2, py: 1.25,
-                    backgroundColor: '#1A3520',
-                    border: '1px solid rgba(255,255,255,0.07)',
+                    backgroundColor: '#FFFFFF',
+                    border: '1px solid rgba(0,0,0,0.06)',
                     borderRadius: '16px 16px 16px 4px',
                     boxShadow: '0 2px 12px rgba(0,0,0,0.2)',
                   }}
                 >
-                  <Typography sx={{ fontSize: '0.6rem', color: '#4A6555', mb: 0.4, fontFamily: '"DM Mono", monospace', letterSpacing: '0.05em' }}>
+                  <Typography sx={{ fontSize: '0.6rem', color: '#6B7280', mb: 0.4, fontFamily: '"DM Mono", monospace', letterSpacing: '0.05em' }}>
                     FERTOBOT
                   </Typography>
-                  <Typography sx={{ fontSize: '0.875rem', lineHeight: 1.55, color: '#D4E3DC', fontFamily: '"Plus Jakarta Sans", sans-serif' }}>
+                  <Typography sx={{ fontSize: '0.875rem', lineHeight: 1.55, color: '#374151', fontFamily: '"Inter", sans-serif' }}>
                     {msg.text}
                   </Typography>
-                  <Typography sx={{ fontSize: '0.6rem', color: '#4A6555', mt: 0.4, textAlign: 'right', fontFamily: '"DM Mono", monospace' }}>
+                  <Typography sx={{ fontSize: '0.6rem', color: '#6B7280', mt: 0.4, textAlign: 'right', fontFamily: '"DM Mono", monospace' }}>
                     {msg.time}
                   </Typography>
                 </Box>
@@ -367,7 +381,7 @@ const VoiceChatbot: React.FC = () => {
                 borderRadius: '16px 16px 4px 16px',
               }}
             >
-              <Typography sx={{ fontSize: '0.875rem', lineHeight: 1.5, color: alpha('#F0EDE6', 0.6), fontStyle: 'italic', fontFamily: '"Plus Jakarta Sans", sans-serif' }}>
+              <Typography sx={{ fontSize: '0.875rem', lineHeight: 1.5, color: alpha('#111827', 0.6), fontStyle: 'italic', fontFamily: '"Inter", sans-serif' }}>
                 {interimText}
               </Typography>
             </Box>
@@ -379,14 +393,14 @@ const VoiceChatbot: React.FC = () => {
             <Box
               sx={{
                 px: 2, py: 1.25,
-                backgroundColor: '#1A3520',
-                border: '1px solid rgba(255,255,255,0.07)',
+                backgroundColor: '#FFFFFF',
+                border: '1px solid rgba(0,0,0,0.06)',
                 borderRadius: '16px 16px 16px 4px',
                 display: 'flex', alignItems: 'center', gap: 1,
               }}
             >
               <CircularProgress size={12} sx={{ color: AMBER }} />
-              <Typography sx={{ fontSize: '0.75rem', color: '#8FA89C', fontFamily: '"DM Mono", monospace' }}>
+              <Typography sx={{ fontSize: '0.75rem', color: '#6B7280', fontFamily: '"DM Mono", monospace' }}>
                 soch raha hoon...
               </Typography>
             </Box>
@@ -408,7 +422,7 @@ const VoiceChatbot: React.FC = () => {
               sx={{
                 mx: 1.5, mb: 1,
                 px: 2, py: 1.5,
-                backgroundColor: '#0E2617',
+                backgroundColor: '#FFFFFF',
                 border: `1px solid ${alpha(LIVE_GREEN, 0.25)}`,
                 borderRadius: '16px',
                 display: 'flex',
@@ -466,14 +480,14 @@ const VoiceChatbot: React.FC = () => {
             sx={{
               whiteSpace: 'nowrap',
               px: 1.5, py: 0.6,
-              backgroundColor: '#1A3520',
-              color: '#8FA89C',
+              backgroundColor: '#FFFFFF',
+              color: '#6B7280',
               borderRadius: '20px',
               fontSize: '0.72rem',
-              fontFamily: '"Plus Jakarta Sans", sans-serif',
+              fontFamily: '"Inter", sans-serif',
               fontWeight: 500,
               cursor: 'pointer',
-              border: '1px solid rgba(255,255,255,0.07)',
+              border: '1px solid rgba(0,0,0,0.06)',
               flexShrink: 0,
               transition: 'all 0.15s ease',
               '&:hover': {
@@ -493,8 +507,8 @@ const VoiceChatbot: React.FC = () => {
       <Box
         sx={{
           px: 1.5, py: 1.25,
-          backgroundColor: '#132B1A',
-          borderTop: '1px solid rgba(255,255,255,0.06)',
+          backgroundColor: '#FFFFFF',
+          borderTop: '1px solid rgba(0,0,0,0.06)',
           display: 'flex', gap: 1, alignItems: 'flex-end',
           flexShrink: 0,
         }}
@@ -504,13 +518,13 @@ const VoiceChatbot: React.FC = () => {
           onClick={handleVoiceToggle}
           sx={{
             width: 42, height: 42, borderRadius: '12px', flexShrink: 0,
-            backgroundColor: voiceModeOn ? AMBER : '#1A3520',
-            color: voiceModeOn ? '#0D1F14' : '#8FA89C',
-            border: `1px solid ${voiceModeOn ? 'transparent' : 'rgba(255,255,255,0.08)'}`,
+            backgroundColor: voiceModeOn ? AMBER : '#FFFFFF',
+            color: voiceModeOn ? '#F5F8F6' : '#6B7280',
+            border: `1px solid ${voiceModeOn ? 'transparent' : 'rgba(0,0,0,0.08)'}`,
             boxShadow: voiceModeOn ? `0 4px 16px ${alpha(AMBER, 0.4)}` : 'none',
             '&:hover': {
               backgroundColor: voiceModeOn ? '#F5A055' : alpha(AMBER, 0.1),
-              color: voiceModeOn ? '#0D1F14' : AMBER,
+              color: voiceModeOn ? '#F5F8F6' : AMBER,
             },
             animation: isListening ? 'pulse 1s infinite' : 'none',
           }}
@@ -536,13 +550,13 @@ const VoiceChatbot: React.FC = () => {
             '& .MuiOutlinedInput-root': {
               borderRadius: '12px',
               fontSize: '0.875rem',
-              fontFamily: '"Plus Jakarta Sans", sans-serif',
-              backgroundColor: '#1A3520',
-              '& fieldset': { borderColor: 'rgba(255,255,255,0.08)' },
+              fontFamily: '"Inter", sans-serif',
+              backgroundColor: '#FFFFFF',
+              '& fieldset': { borderColor: 'rgba(0,0,0,0.08)' },
               '&:hover fieldset': { borderColor: alpha(AMBER, 0.3) },
               '&.Mui-focused fieldset': { borderColor: AMBER },
             },
-            '& .MuiInputBase-input::placeholder': { color: '#4A6555', opacity: 1 },
+            '& .MuiInputBase-input::placeholder': { color: '#6B7280', opacity: 1 },
           }}
         />
 
@@ -553,11 +567,11 @@ const VoiceChatbot: React.FC = () => {
             width: 42, height: 42, borderRadius: '12px', flexShrink: 0,
             background: input.trim() && !loading
               ? 'linear-gradient(135deg, #F5A055, #D4703A)'
-              : '#1A3520',
-            color: input.trim() && !loading ? '#0D1F14' : '#4A6555',
-            border: `1px solid ${input.trim() && !loading ? 'transparent' : 'rgba(255,255,255,0.06)'}`,
+              : '#FFFFFF',
+            color: input.trim() && !loading ? '#F5F8F6' : '#6B7280',
+            border: `1px solid ${input.trim() && !loading ? 'transparent' : 'rgba(0,0,0,0.06)'}`,
             boxShadow: input.trim() && !loading ? `0 4px 16px ${alpha(AMBER, 0.35)}` : 'none',
-            '&:disabled': { background: '#1A3520', color: '#4A6555' },
+            '&:disabled': { background: '#FFFFFF', color: '#6B7280' },
           }}
         >
           <Send sx={{ fontSize: 17 }} />

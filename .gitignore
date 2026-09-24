@@ -8,3 +8,6 @@ fert-master/.env
 fert-master/server/.env
 *.log
 fert-master/server/logs/
+.claude/
+.playwright-mcp/
+nul

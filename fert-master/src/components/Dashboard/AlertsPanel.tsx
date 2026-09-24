@@ -115,7 +115,7 @@ const AlertsPanel: React.FC<AlertsPanelProps> = ({ alerts: liveAlerts }) => {
       {/* Header */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5, pb: 1, borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
         <Typography
-          sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#F0EDE6', fontFamily: '"Plus Jakarta Sans", sans-serif' }}
+          sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#F0EDE6', fontFamily: '"Inter", sans-serif' }}
         >
           Alerts
           <Box component="span" sx={{ ml: 1, px: 0.9, py: 0.2, borderRadius: '6px', fontSize: '0.7rem', backgroundColor: unacknowledgedAlerts.length > 0 ? 'rgba(239,83,80,0.15)' : 'rgba(82,208,128,0.12)', color: unacknowledgedAlerts.length > 0 ? '#EF5350' : '#52D080', border: `1px solid ${unacknowledgedAlerts.length > 0 ? 'rgba(239,83,80,0.3)' : 'rgba(82,208,128,0.2)'}`, fontFamily: '"DM Mono", monospace' }}>
@@ -163,7 +163,7 @@ const AlertsPanel: React.FC<AlertsPanelProps> = ({ alerts: liveAlerts }) => {
                 <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 0.75 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
                     <Icon sx={{ fontSize: 15, color }} />
-                    <Typography sx={{ fontWeight: 600, fontSize: '0.82rem', color: '#F0EDE6', fontFamily: '"Plus Jakarta Sans", sans-serif' }}>
+                    <Typography sx={{ fontWeight: 600, fontSize: '0.82rem', color: '#F0EDE6', fontFamily: '"Inter", sans-serif' }}>
                       {alert.title}
                     </Typography>
                     <Chip

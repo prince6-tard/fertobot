@@ -100,7 +100,7 @@ const RecommendationItem: React.FC<RecommendationItemProps> = ({ recommendation 
         <Box sx={{ flexGrow: 1, minWidth: 0 }}>
           {/* Title row */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.5, flexWrap: 'wrap' }}>
-            <Typography sx={{ fontWeight: 600, fontSize: '0.82rem', color: '#F0EDE6', fontFamily: '"Plus Jakarta Sans", sans-serif' }}>
+            <Typography sx={{ fontWeight: 600, fontSize: '0.82rem', color: '#F0EDE6', fontFamily: '"Inter", sans-serif' }}>
               {recommendation.title}
             </Typography>
             <Chip
@@ -190,7 +190,7 @@ const RecommendationsPanel: React.FC<RecommendationsPanelProps> = ({ recommendat
     <Box sx={{ width: '100%' }}>
       {/* Header */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5, pb: 1, borderBottom: '1px solid rgba(255,255,255,0.07)', gap: 1, flexWrap: 'wrap' }}>
-        <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#F0EDE6', fontFamily: '"Plus Jakarta Sans", sans-serif' }}>
+        <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#F0EDE6', fontFamily: '"Inter", sans-serif' }}>
           Recommendations
           <Box component="span" sx={{ ml: 1, px: 0.9, py: 0.2, borderRadius: '6px', fontSize: '0.7rem', backgroundColor: 'rgba(244,162,97,0.1)', color: '#F4A261', border: '1px solid rgba(244,162,97,0.2)', fontFamily: '"DM Mono", monospace' }}>
             {filteredRecommendations.length}

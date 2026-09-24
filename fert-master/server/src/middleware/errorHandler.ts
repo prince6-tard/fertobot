@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import logger from '../config/logger';
+import { ZodError } from 'zod';
 
 export interface ApiError extends Error {
   statusCode?: number;
@@ -16,6 +17,30 @@ class AppError extends Error implements ApiError {
     this.isOperational = true;
 
     Error.captureStackTrace(this, this.constructor);
+  }
+}
+
+class NotFoundError extends AppError {
+  constructor(resource: string) {
+    super(`${resource} not found`, 404);
+  }
+}
+
+class ValidationError extends AppError {
+  constructor(msg: string) {
+    super(msg, 400);
+  }
+}
+
+class UnauthorizedError extends AppError {
+  constructor(msg?: string) {
+    super(msg ?? 'Unauthorized', 401);
+  }
+}
+
+class ForbiddenError extends AppError {
+  constructor(msg?: string) {
+    super(msg ?? 'Forbidden', 403);
   }
 }
 
@@ -51,6 +76,13 @@ const errorHandler = (
     err = new AppError('Token expired', 401);
   }
 
+  // Zod validation error
+  let errors: any = undefined;
+  if (err instanceof ZodError) {
+    errors = err.issues;
+    err = new AppError('Validation Error', 400);
+  }
+
   logger.error({
     message: err.message,
     statusCode: err.statusCode,
@@ -64,8 +96,9 @@ const errorHandler = (
     success: false,
     message: err.message,
     statusCode: err.statusCode,
+    ...(errors && { errors }),
     ...(process.env.NODE_ENV !== 'production' && { stack: err.stack }),
   });
 };
 
-export { AppError, errorHandler as default };
+export { AppError, NotFoundError, ValidationError, UnauthorizedError, ForbiddenError, errorHandler as default };

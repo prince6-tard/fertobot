@@ -44,7 +44,7 @@ const ConnectivityStatus: React.FC<ConnectivityStatusProps> = ({ probes }) => {
       <StatusIcon sx={{ fontSize: 16, color: statusColor, flexShrink: 0 }} />
 
       <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-        <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: statusColor, fontFamily: '"Plus Jakarta Sans", sans-serif' }}>
+        <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: statusColor, fontFamily: '"Inter", sans-serif' }}>
           {allGood ? 'All probes connected' : `${issuesCount} probe${issuesCount > 1 ? 's' : ''} need attention`}
         </Typography>
         <Typography sx={{ fontSize: '0.65rem', color: '#8FA89C', fontFamily: '"DM Mono", monospace' }}>

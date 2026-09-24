@@ -10,17 +10,17 @@ import bcrypt from 'bcrypt';
 async function seedAdmin() {
   // Dynamic import to avoid circular dep issues before mongoose connects
   const UserModel = (await import('./models/User')).default;
-  const existing = await UserModel.findOne({ email: 'naveen@vizilare.com' });
+  const existing = await UserModel.findOne({ email: 'demo@fertobot.com' });
   if (existing) return;
-  const hashed = await bcrypt.hash('fertobot2024', 10);
+  const hashed = await bcrypt.hash('demo1234', 10);
   await UserModel.create({
-    email: 'naveen@vizilare.com',
+    email: 'demo@fertobot.com',
     password: hashed,
-    firstName: 'Naveen',
-    lastName: 'Vizilare',
+    firstName: 'Demo',
+    lastName: 'User',
     isActive: true,
   });
-  console.log('[devStart] Admin user seeded: naveen@vizilare.com / fertobot2024');
+  console.log('[devStart] Admin user seeded: demo@fertobot.com / demo1234');
 }
 
 async function start() {

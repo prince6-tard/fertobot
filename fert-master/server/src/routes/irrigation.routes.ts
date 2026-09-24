@@ -2,9 +2,11 @@ import { Router } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import Probe from '../models/Probe';
 import User from '../models/User';
-import { AppError } from '../middleware/errorHandler';
+import { NotFoundError, ForbiddenError } from '../middleware/errorHandler';
 import logger from '../config/logger';
 import { deliverCommand } from '../services/commandQueue';
+import { validate } from '../middleware/validate';
+import { controlBodySchema } from '../schemas/irrigation.schemas';
 
 const router = Router();
 
@@ -21,8 +23,7 @@ router.get('/schedule', async (_req: AuthRequest, res, next) => {
   }
 });
 
-// Control sprinkler
-router.post('/control', async (req: AuthRequest, res, next) => {
+router.post('/control', validate('body', controlBodySchema), async (req: AuthRequest, res, next) => {
   try {
     const { probeId, probeUuid, relay, pump, durationMs, buzzerMs } = req.body as {
       probeId?: string;
@@ -32,14 +33,6 @@ router.post('/control', async (req: AuthRequest, res, next) => {
       durationMs?: number;
       buzzerMs?: number;
     };
-
-    if (!probeId && !probeUuid) {
-      throw new AppError('probeId or probeUuid is required', 400);
-    }
-
-    if (relay === undefined && pump === undefined) {
-      throw new AppError('Either relay or pump command is required', 400);
-    }
 
     // findById throws CastError on invalid ObjectIds — catch it and fall through to uuid lookup.
     // Guard against undefined probeUuid: findOne({ uuid: undefined }) strips the key in Mongoose
@@ -68,11 +61,11 @@ router.post('/control', async (req: AuthRequest, res, next) => {
     logger.info(`Irrigation command — probeId: ${probeId}, probeUuid: ${probeUuid}, probe resolved: ${probe?.uuid ?? 'none'}`);
 
     if (!probe || !probe.isActive) {
-      throw new AppError('Probe not found or inactive', 404);
+      throw new NotFoundError('Probe');
     }
 
     if (req.user?.id && probe.userId.toString() !== req.user.id) {
-      throw new AppError('Unauthorized', 403);
+      throw new ForbiddenError();
     }
 
     const commandPayload: Record<string, unknown> = {};

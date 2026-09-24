@@ -1,4 +1,4 @@
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import logger from '../config/logger';
 
 /**
@@ -9,26 +9,39 @@ import logger from '../config/logger';
  *   1. ESP32 connects with GET /api/device/command/wait (long-poll, 25s hold)
  *   2. Button pressed → deliverCommand() called
  *   3a. If ESP32 is waiting → respond immediately (0ms delay)
- *   3b. If ESP32 is not connected yet → queue it, deliver on next poll
+ *   3b. If ESP32 is not connected yet → enqueue it, deliver on next poll
+ *
+ * Commands are held in a FIFO per device so rapid presses don't drop each other.
  */
 
-// Command queued but no ESP32 connected yet
-const pendingCommands = new Map<string, Record<string, unknown>>();
+type Command = Record<string, unknown>;
 
-// ESP32 connections currently held open waiting for a command
+// Queued commands waiting for an ESP32 to connect (FIFO per device).
+const pendingCommands = new Map<string, Command[]>();
+
+// ESP32 connections currently held open waiting for a command (one per device).
 const waitingClients = new Map<string, Response>();
 
 /**
- * Consume a queued command without waiting for a long-poll connection.
+ * Consume the head of a device's queue without waiting for a long-poll.
  * Used to piggyback commands onto the regular telemetry upload response.
- * Returns the command and removes it from the queue, or null if nothing pending.
+ * Returns the command and removes it from the queue, or null if empty.
  */
-export function consumeCommand(probeUuid: string): Record<string, unknown> | null {
-  const cmd = pendingCommands.get(probeUuid);
-  if (!cmd) return null;
-  pendingCommands.delete(probeUuid);
+export function consumeCommand(probeUuid: string): Command | null {
+  const queue = pendingCommands.get(probeUuid);
+  if (!queue || queue.length === 0) return null;
+  const cmd = queue.shift()!;
+  if (queue.length === 0) pendingCommands.delete(probeUuid);
   logger.info(`Command consumed via upload piggyback for ${probeUuid}: ${JSON.stringify(cmd)}`);
   return cmd;
+}
+
+/**
+ * Returns the head of the device's queue without removing it, or null.
+ */
+export function getPendingCommand(probeUuid: string): Command | null {
+  const queue = pendingCommands.get(probeUuid);
+  return queue && queue.length > 0 ? queue[0] : null;
 }
 
 /**
@@ -36,7 +49,7 @@ export function consumeCommand(probeUuid: string): Record<string, unknown> | nul
  * Returns true if the ESP32 was already waiting and got it instantly.
  * Returns false if it was queued for the next poll.
  */
-export function deliverCommand(probeUuid: string, command: Record<string, unknown>): boolean {
+export function deliverCommand(probeUuid: string, command: Command): boolean {
   const waiting = waitingClients.get(probeUuid);
   if (waiting) {
     logger.info(`Command delivered instantly to waiting ESP32 ${probeUuid}: ${JSON.stringify(command)}`);
@@ -45,31 +58,42 @@ export function deliverCommand(probeUuid: string, command: Record<string, unknow
     return true;
   }
   logger.info(`ESP32 ${probeUuid} not connected — command queued: ${JSON.stringify(command)}`);
-  pendingCommands.set(probeUuid, command);
+  const queue = pendingCommands.get(probeUuid);
+  if (queue) queue.push(command);
+  else pendingCommands.set(probeUuid, [command]);
   return false;
 }
 
 /**
  * Called by the long-poll endpoint.
- * If a command is already queued, resolves immediately.
+ * If a command is already queued, resolves immediately with the head.
  * Otherwise holds `res` open for up to `timeoutMs` ms, then sends 204.
+ *
+ * If this device already had a long-poll open, that previous response is ended
+ * with 204 so its socket isn't left hanging for the full timeout.
  */
 export function waitForCommand(
   probeUuid: string,
   res: Response,
-  req: import('express').Request,
+  req: Request,
   timeoutMs = 25000
 ): void {
-  // Command already queued — deliver immediately
-  const queued = pendingCommands.get(probeUuid);
+  // Command already queued — deliver the head immediately, leave the rest queued.
+  const queued = consumeCommand(probeUuid);
   if (queued) {
     logger.info(`Queued command delivered to ESP32 ${probeUuid} on connect: ${JSON.stringify(queued)}`);
-    pendingCommands.delete(probeUuid);
     res.json(queued);
     return;
   }
 
-  // Hold the connection open
+  // If a previous long-poll is still held open, release it before we take the slot.
+  const previous = waitingClients.get(probeUuid);
+  if (previous) {
+    waitingClients.delete(probeUuid);
+    if (!previous.headersSent) previous.status(204).end();
+  }
+
+  // Hold the connection open for the next command.
   waitingClients.set(probeUuid, res);
 
   const timer = setTimeout(() => {
@@ -79,7 +103,7 @@ export function waitForCommand(
     }
   }, timeoutMs);
 
-  // Clean up if ESP32 disconnects early
+  // Clean up if ESP32 disconnects early.
   req.on('close', () => {
     clearTimeout(timer);
     if (waitingClients.get(probeUuid) === res) {

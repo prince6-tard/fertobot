@@ -40,8 +40,10 @@ import { startMqttService, stopMqttService } from './services/mqtt.service';
 const app: Express = express();
 const PORT = process.env.PORT || 3001;
 
-// Connect to MongoDB
-connectDB();
+// Connect to MongoDB (skip in tests, memory server handles it)
+if (process.env.NODE_ENV !== 'test') {
+  connectDB();
+}
 
 // ============= SECURITY MIDDLEWARE =============
 app.use(helmet());
@@ -138,34 +140,42 @@ app.use((req: Request, res: Response) => {
 app.use(errorHandler);
 
 // ============= START SERVER =============
-const server = app.listen(PORT, () => {
-  logger.info(`🚀 FertoBot API Server running on port ${PORT}`);
-  logger.info(`📝 Environment: ${process.env.NODE_ENV || 'development'}`);
-  logger.info(`🔗 API Documentation: http://localhost:${PORT}/api/docs`);
-  if (process.env.MQTT_BROKER_URL && !process.env.MQTT_BROKER_URL.includes('localhost')) {
-    startMqttService();
-  } else {
-    logger.info('MQTT disabled (no broker running locally)');
-  }
-});
+let server: any;
+if (process.env.NODE_ENV !== 'test') {
+  server = app.listen(PORT, () => {
+    logger.info(`🚀 FertoBot API Server running on port ${PORT}`);
+    logger.info(`📝 Environment: ${process.env.NODE_ENV || 'development'}`);
+    logger.info(`🔗 API Documentation: http://localhost:${PORT}/api/docs`);
+    if (process.env.MQTT_BROKER_URL && !process.env.MQTT_BROKER_URL.includes('localhost')) {
+      startMqttService();
+    } else {
+      logger.info('MQTT disabled (no broker running locally)');
+    }
+  });
+}
 
 // ============= GRACEFUL SHUTDOWN =============
 process.on('SIGTERM', () => {
   logger.info('SIGTERM signal received: closing HTTP server');
   stopMqttService();
-  server.close(() => {
-    logger.info('HTTP server closed');
-    process.exit(0);
-  });
+  if (server) {
+    server.close(() => {
+      logger.info('HTTP server closed');
+      process.exit(0);
+    });
+  } else process.exit(0);
 });
 
 process.on('SIGINT', () => {
   logger.info('SIGINT signal received: closing HTTP server');
   stopMqttService();
-  server.close(() => {
-    logger.info('HTTP server closed');
-    process.exit(0);
-  });
+  if (server) {
+    server.close(() => {
+      logger.info('HTTP server closed');
+      process.exit(0);
+    });
+  } else process.exit(0);
 });
 
 export default app;
+export { server };

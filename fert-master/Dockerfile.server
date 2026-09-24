@@ -12,6 +12,7 @@ RUN npm ci
 # Copy source code
 COPY server/src ./src
 COPY server/tsconfig.json ./
+COPY server/seed.ts ./
 
 # Build
 RUN npm run build
@@ -28,10 +29,11 @@ RUN apk add --no-cache dumb-init
 COPY server/package*.json ./
 
 # Install production dependencies only
-RUN npm ci --only=production && npm cache clean --force
+RUN npm ci --omit=dev && npm cache clean --force
 
 # Copy built application from builder
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/seed.ts ./
 
 # Non-root user
 RUN addgroup -g 1001 -S nodejs && adduser -S nodejs -u 1001

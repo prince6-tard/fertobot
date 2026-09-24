@@ -114,8 +114,9 @@ const normalizeAlert = (alert: Record<string, unknown>): Alert => ({
   probeId: alert.probeId ? String(alert.probeId) : undefined,
 });
 
-export const fetchDashboardOverview = async (): Promise<DashboardOverview> => {
-  const response = await fetch('/api/dashboard/overview');
+export const fetchDashboardOverview = async (forceRefresh = false): Promise<DashboardOverview> => {
+  const url = forceRefresh ? '/api/dashboard/overview?refresh=true' : '/api/dashboard/overview';
+  const response = await fetch(url);
 
   if (!response.ok) {
     throw new Error(`Dashboard overview request failed: ${response.status}`);

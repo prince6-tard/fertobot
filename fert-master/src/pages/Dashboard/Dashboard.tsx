@@ -24,21 +24,22 @@ import {
   BarChart, Bar, Cell, ResponsiveContainer, AreaChart, Area, Tooltip,
 } from 'recharts';
 import { fetchDashboardOverview, DashboardOverview } from '../../services/dashboardService';
+import { useLanguage } from '../../context/LanguageContext';
 
-// ── Design Tokens ─────────────────────────────────────────
-const ACCENT   = '#A8FF3E';   // phosphorescent primary
-const TEAL     = '#00E5C6';   // live/teal
-const AMBER    = '#FFB830';   // warning
-const RED      = '#FF4565';   // critical
-const BLUE     = '#4DA8FF';   // moisture/info
-const PURPLE   = '#B06EFF';   // NPK purple
-const TEXT     = '#D8EDE0';   // primary text
-const MUTED    = '#4A6E55';   // muted text
-const CARD     = '#0A1410';   // card background
-const CARD_E   = '#0F1C14';   // elevated card
-const BG       = '#060C08';   // page background
-const BORDER   = 'rgba(168,255,62,0.07)';
-const SHADOW   = '0 2px 20px rgba(0,0,0,0.55)';
+// ── Design Tokens (Light Theme) ───────────────────────────
+const ACCENT   = '#1A7F37';
+const TEAL     = '#20C997';
+const AMBER    = '#F59E0B';
+const RED      = '#EF4444';
+const BLUE     = '#3B82F6';
+const PURPLE   = '#8B5CF6';
+const TEXT     = '#111827';
+const MUTED    = '#6B7280';
+const CARD     = '#FFFFFF';
+const CARD_E   = '#F9FAFB';
+const BG       = '#F5F8F6';
+const BORDER   = 'rgba(0,0,0,0.08)';
+const SHADOW   = '0 4px 12px rgba(0,0,0,0.03)';
 
 // ── Helpers ───────────────────────────────────────────────
 const getUserName = (): string => {
@@ -87,30 +88,30 @@ const StatPill: React.FC<{
   unit?: string; color: string;
 }> = ({ icon: Icon, label, value, unit, color }) => (
   <Box sx={{
-    display: 'flex', alignItems: 'center', gap: 1.25,
-    px: 1.5, py: 1.25, borderRadius: '12px',
+    display: 'flex', alignItems: 'center', gap: 1.5,
+    px: 2.5, py: 2, borderRadius: '16px',
     bgcolor: CARD_E, border: `1px solid ${BORDER}`,
     flex: '1 1 0', minWidth: 0,
     transition: 'border-color 0.2s, transform 0.2s',
-    '&:hover': { borderColor: alpha(color, 0.3), transform: 'translateY(-1px)' },
+    '&:hover': { borderColor: alpha(color, 0.3), transform: 'translateY(-2px)' },
     className: 'nexus-card',
   }}>
     <Box sx={{
-      width: 34, height: 34, borderRadius: '9px', flexShrink: 0,
+      width: 48, height: 48, borderRadius: '12px', flexShrink: 0,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       bgcolor: alpha(color, 0.1), border: `1px solid ${alpha(color, 0.18)}`,
     }}>
-      <Icon sx={{ fontSize: 16, color }} />
+      <Icon sx={{ fontSize: 26, color }} />
     </Box>
     <Box sx={{ minWidth: 0 }}>
-      <Typography sx={{ fontSize: '0.49rem', fontWeight: 700, color: MUTED, letterSpacing: '0.12em', textTransform: 'uppercase', fontFamily: '"DM Mono", monospace' }}>
+      <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: MUTED, letterSpacing: '0.12em', textTransform: 'uppercase', fontFamily: '"DM Mono", monospace', mb: 0.25 }}>
         {label}
       </Typography>
       <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.3 }}>
-        <Typography sx={{ fontFamily: '"DM Mono", monospace', fontSize: '1.35rem', fontWeight: 700, color, lineHeight: 1.1 }}>
+        <Typography sx={{ fontFamily: '"DM Mono", monospace', fontSize: '1.8rem', fontWeight: 700, color, lineHeight: 1.1 }}>
           {value}
         </Typography>
-        {unit && <Typography sx={{ fontFamily: '"DM Mono", monospace', fontSize: '0.65rem', color: alpha(color, 0.5) }}>{unit}</Typography>}
+        {unit && <Typography sx={{ fontFamily: '"DM Mono", monospace', fontSize: '0.8rem', color: alpha(color, 0.5) }}>{unit}</Typography>}
       </Box>
     </Box>
   </Box>
@@ -123,7 +124,7 @@ const ResourceBar: React.FC<{
   <Box sx={{ py: 1.25, borderBottom: `1px solid ${BORDER}`, '&:last-child': { borderBottom: 'none' } }}>
     <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.75 }}>
       <Box>
-        <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: TEXT, fontFamily: '"Figtree", sans-serif', lineHeight: 1.2 }}>
+        <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: TEXT, fontFamily: '"Inter", sans-serif', lineHeight: 1.2 }}>
           {label}
         </Typography>
         <Typography sx={{ fontSize: '0.6rem', color: MUTED, fontFamily: '"DM Mono", monospace' }}>{sublabel}</Typography>
@@ -180,17 +181,27 @@ const Dashboard: React.FC = () => {
   const [irrigationOn, setIrrigationOn] = useState(true);
   const [fertOn, setFertOn]             = useState(false);
   const [activeFilter, setActiveFilter] = useState<'all' | 'critical' | 'warning'>('all');
+  const { t } = useLanguage();
   const userName = useMemo(getUserName, []);
 
-  const load = async () => {
-    setLoading(true);
-    try { setOverview(await fetchDashboardOverview()); } catch { /* silent */ }
-    finally { setLoading(false); }
+  const [refreshing, setRefreshing]     = useState(false);
+
+  const load = async (forceRefresh = false) => {
+    if (forceRefresh) setRefreshing(true);
+    else setLoading(true);
+    try {
+      setOverview(await fetchDashboardOverview(forceRefresh));
+    } catch { /* silent */ }
+    finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   };
 
   useEffect(() => {
-    void load();
-    const interval = setInterval(() => void load(), 10000); // refresh every 10 s
+    void load(false);
+    // Poll every 30s to check for 5-min window expiration
+    const interval = setInterval(() => void load(false), 30000);
     return () => clearInterval(interval);
   }, []);
 
@@ -231,24 +242,46 @@ const Dashboard: React.FC = () => {
       <Box sx={{ mb: 3, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 2 }}>
         <Box>
           <Typography sx={{
-            fontFamily: '"Syne", sans-serif', fontWeight: 800, letterSpacing: '-0.03em',
+            fontFamily: '"Inter", sans-serif', fontWeight: 800, letterSpacing: '-0.03em',
             fontSize: { xs: '1.6rem', md: '2rem' }, color: TEXT, lineHeight: 1.1, mb: 0.4,
           }}>
             {greeting}, {userName}
           </Typography>
-          <Typography sx={{ fontSize: '0.8rem', color: MUTED, fontFamily: '"Figtree", sans-serif', maxWidth: 480, lineHeight: 1.65 }}>
+          <Typography sx={{ fontSize: '0.8rem', color: MUTED, fontFamily: '"Inter", sans-serif', maxWidth: 480, lineHeight: 1.65 }}>
             {loading
               ? 'Fetching live data from your field nodes…'
               : `Field ecosystem nominal · ${onlineNodes || 10} of ${totalNodes || 14} nodes streaming · Next irrigation at 06:00 AM`}
           </Typography>
         </Box>
 
-        <Box sx={{ display: { xs: 'none', md: 'flex' }, gap: 1, flexShrink: 0 }}>
-          <IconButton size="small" onClick={load} sx={{
-            color: MUTED, border: `1px solid ${BORDER}`, borderRadius: '8px',
-            '&:hover': { color: ACCENT, borderColor: 'rgba(168,255,62,0.2)' },
-          }}>
-            <RefreshIcon sx={{ fontSize: 16 }} />
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexShrink: 0 }}>
+          <Box sx={{ display: { xs: 'none', sm: 'block' }, textAlign: 'right' }}>
+            <Typography sx={{ fontSize: '0.65rem', color: MUTED, fontWeight: 600 }}>
+              Updated: {overview?.generatedAt ? new Date(overview.generatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now'}
+            </Typography>
+            <Typography sx={{ fontSize: '0.6rem', color: alpha(ACCENT, 0.8), fontWeight: 500 }}>
+              5-min cycle
+            </Typography>
+          </Box>
+          <IconButton
+            size="small"
+            disabled={loading || refreshing}
+            onClick={() => void load(true)}
+            title="Refresh now (Generates new reading cycle)"
+            sx={{
+              color: MUTED, border: `1px solid ${BORDER}`, borderRadius: '8px', p: 1,
+              '&:hover': { color: ACCENT, borderColor: 'rgba(40,167,69,0.2)', bgcolor: alpha(ACCENT, 0.05) },
+            }}
+          >
+            <RefreshIcon sx={{
+              fontSize: 18,
+              transition: 'transform 0.4s ease',
+              ...(refreshing && { animation: 'spin 1s linear infinite' }),
+              '@keyframes spin': {
+                '0%': { transform: 'rotate(0deg)' },
+                '100%': { transform: 'rotate(360deg)' },
+              },
+            }} />
           </IconButton>
         </Box>
       </Box>
@@ -273,7 +306,7 @@ const Dashboard: React.FC = () => {
             {/* Feed header */}
             <Box sx={{ px: 2.5, pt: 2.25, pb: 2, borderBottom: `1px solid ${BORDER}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
               <Box>
-                <Typography sx={{ fontFamily: '"Syne", sans-serif', fontWeight: 700, fontSize: '1.05rem', color: TEXT, mb: 0.2 }}>
+                <Typography sx={{ fontFamily: '"Inter", sans-serif', fontWeight: 700, fontSize: '1.05rem', color: TEXT, mb: 0.2 }}>
                   Active Intelligence
                 </Typography>
                 <Typography sx={{ fontSize: '0.64rem', color: MUTED, fontFamily: '"DM Mono", monospace' }}>
@@ -288,9 +321,9 @@ const Dashboard: React.FC = () => {
                     fontSize: '0.6rem', fontWeight: 700, fontFamily: '"DM Mono", monospace',
                     textTransform: 'uppercase', letterSpacing: '0.08em',
                     transition: 'all 0.15s',
-                    bgcolor: activeFilter === f ? (f === 'all' ? 'rgba(168,255,62,0.12)' : f === 'critical' ? 'rgba(255,69,101,0.12)' : 'rgba(255,184,48,0.12)') : 'transparent',
+                    bgcolor: activeFilter === f ? (f === 'all' ? 'rgba(40,167,69,0.12)' : f === 'critical' ? 'rgba(239,68,68,0.12)' : 'rgba(245,158,11,0.12)') : 'transparent',
                     color: activeFilter === f ? (f === 'all' ? ACCENT : f === 'critical' ? RED : AMBER) : MUTED,
-                    border: `1px solid ${activeFilter === f ? (f === 'all' ? 'rgba(168,255,62,0.2)' : f === 'critical' ? 'rgba(255,69,101,0.2)' : 'rgba(255,184,48,0.2)') : BORDER}`,
+                    border: `1px solid ${activeFilter === f ? (f === 'all' ? 'rgba(40,167,69,0.2)' : f === 'critical' ? 'rgba(239,68,68,0.2)' : 'rgba(245,158,11,0.2)') : BORDER}`,
                   }}>
                     {f}
                   </Box>
@@ -303,7 +336,7 @@ const Dashboard: React.FC = () => {
               {loading ? (
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, p: 2 }}>
                   <CircularProgress size={16} sx={{ color: ACCENT }} />
-                  <Typography sx={{ fontSize: '0.75rem', color: MUTED, fontFamily: '"Figtree", sans-serif' }}>Loading intelligence feed…</Typography>
+                  <Typography sx={{ fontSize: '0.75rem', color: MUTED, fontFamily: '"Inter", sans-serif' }}>Loading intelligence feed…</Typography>
                 </Box>
               ) : filteredAlerts.length > 0 ? filteredAlerts.map((alert, idx) => {
                 const c = getSevColor(alert.severity);
@@ -342,14 +375,14 @@ const Dashboard: React.FC = () => {
                       {/* Content */}
                       <Box sx={{ flex: 1, minWidth: 0 }}>
                         <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1, mb: 0.4 }}>
-                          <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: TEXT, fontFamily: '"Figtree", sans-serif', lineHeight: 1.35 }}>
+                          <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: TEXT, fontFamily: '"Inter", sans-serif', lineHeight: 1.35 }}>
                             {alert.title}
                           </Typography>
                           <Typography sx={{ fontSize: '0.58rem', color: MUTED, fontFamily: '"DM Mono", monospace', flexShrink: 0 }}>
                             {getTimeAgo(new Date(alert.timestamp))}
                           </Typography>
                         </Box>
-                        <Typography sx={{ fontSize: '0.72rem', color: alpha(TEXT, 0.55), fontFamily: '"Figtree", sans-serif', lineHeight: 1.5, mb: 1 }}>
+                        <Typography sx={{ fontSize: '0.72rem', color: alpha(TEXT, 0.55), fontFamily: '"Inter", sans-serif', lineHeight: 1.5, mb: 1 }}>
                           {alert.message || 'Automated detection system identified anomaly. Field operator notification dispatched.'}
                         </Typography>
 
@@ -389,8 +422,8 @@ const Dashboard: React.FC = () => {
                     <CheckIcon sx={{ fontSize: 17, color: ACCENT }} />
                   </Box>
                   <Box>
-                    <Typography sx={{ fontSize: '0.8rem', fontWeight: 700, color: ACCENT, fontFamily: '"Figtree", sans-serif' }}>All systems nominal</Typography>
-                    <Typography sx={{ fontSize: '0.64rem', color: MUTED, fontFamily: '"Figtree", sans-serif' }}>No active alerts or anomalies detected</Typography>
+                    <Typography sx={{ fontSize: '0.8rem', fontWeight: 700, color: ACCENT, fontFamily: '"Inter", sans-serif' }}>All systems nominal</Typography>
+                    <Typography sx={{ fontSize: '0.64rem', color: MUTED, fontFamily: '"Inter", sans-serif' }}>No active alerts or anomalies detected</Typography>
                   </Box>
                 </Box>
               )}
@@ -425,7 +458,7 @@ const Dashboard: React.FC = () => {
               <Box sx={{ display: 'flex', alignItems: 'flex-end', gap: 2, mb: 1.5 }}>
                 <Box>
                   <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
-                    <Typography sx={{ fontFamily: '"Syne", sans-serif', fontSize: '3.5rem', fontWeight: 800, color: ACCENT, lineHeight: 1, letterSpacing: '-0.04em',
+                    <Typography sx={{ fontFamily: '"Inter", sans-serif', fontSize: '3.5rem', fontWeight: 800, color: ACCENT, lineHeight: 1, letterSpacing: '-0.04em',
                       textShadow: `0 0 20px ${alpha(ACCENT, 0.4)}` }}>
                       {loading ? '—' : healthScore}
                     </Typography>
@@ -461,7 +494,7 @@ const Dashboard: React.FC = () => {
                 ].map(s => (
                   <Box key={s.label}>
                     <Typography sx={{ fontFamily: '"DM Mono", monospace', fontSize: '1rem', fontWeight: 700, color: TEXT }}>{s.val}</Typography>
-                    <Typography sx={{ fontSize: '0.52rem', color: MUTED, fontFamily: '"Figtree", sans-serif', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{s.label}</Typography>
+                    <Typography sx={{ fontSize: '0.52rem', color: MUTED, fontFamily: '"Inter", sans-serif', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{s.label}</Typography>
                   </Box>
                 ))}
               </Box>
@@ -470,8 +503,8 @@ const Dashboard: React.FC = () => {
             {/* Controls */}
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
               {[
-                { icon: '💧', label: 'Automated Irrigation', status: irrigationOn, setStatus: setIrrigationOn, color: BLUE, sub: irrigationOn ? 'Next cycle · 06:00 AM' : 'Manual mode' },
-                { icon: '🌿', label: 'Auto Fertilisation',   status: fertOn,       setStatus: setFertOn,       color: ACCENT, sub: fertOn ? 'Active · NPK balanced' : 'Manual adjustment' },
+                { icon: '💧', label: t('smartWater'), status: irrigationOn, setStatus: setIrrigationOn, color: BLUE, sub: irrigationOn ? 'Next cycle · 06:00 AM' : t('manualMode') },
+                { icon: '🌿', label: t('smartKhaad'),   status: fertOn,       setStatus: setFertOn,       color: ACCENT, sub: fertOn ? t('activeBalanced') : t('manualAdj') },
               ].map(ctrl => (
                 <Box key={ctrl.label} sx={{ bgcolor: CARD, borderRadius: '14px', border: `1px solid ${BORDER}`, boxShadow: SHADOW, p: 2, flex: 1,
                   transition: 'border-color 0.2s',
@@ -484,7 +517,7 @@ const Dashboard: React.FC = () => {
                     <Switch size="small" checked={ctrl.status} onChange={e => ctrl.setStatus(e.target.checked)}
                       sx={{ '& .MuiSwitch-switchBase.Mui-checked': { color: ctrl.color }, '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: alpha(ctrl.color, 0.4) } }} />
                   </Box>
-                  <Typography sx={{ fontSize: '0.8rem', fontWeight: 700, color: TEXT, fontFamily: '"Figtree", sans-serif', mb: 0.2 }}>{ctrl.label}</Typography>
+                  <Typography sx={{ fontSize: '0.8rem', fontWeight: 700, color: TEXT, fontFamily: '"Inter", sans-serif', mb: 0.2 }}>{ctrl.label}</Typography>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                     <Box sx={{ width: 5, height: 5, borderRadius: '50%', bgcolor: ctrl.status ? ctrl.color : MUTED,
                       ...(ctrl.status && { animation: 'pulse-dot 2s ease-in-out infinite' }) }} />
@@ -492,7 +525,7 @@ const Dashboard: React.FC = () => {
                       {ctrl.status ? 'ENABLED' : 'DISABLED'}
                     </Typography>
                   </Box>
-                  <Typography sx={{ fontSize: '0.58rem', color: MUTED, fontFamily: '"Figtree", sans-serif', mt: 0.15 }}>{ctrl.sub}</Typography>
+                  <Typography sx={{ fontSize: '0.58rem', color: MUTED, fontFamily: '"Inter", sans-serif', mt: 0.15 }}>{ctrl.sub}</Typography>
                 </Box>
               ))}
             </Box>
@@ -502,7 +535,7 @@ const Dashboard: React.FC = () => {
           <Box sx={{ bgcolor: CARD, borderRadius: '16px', border: `1px solid ${BORDER}`, boxShadow: SHADOW, overflow: 'hidden' }}>
             <Box sx={{ px: 2.5, pt: 2.25, pb: 1.75, borderBottom: `1px solid ${BORDER}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <Box>
-                <Typography sx={{ fontFamily: '"Syne", sans-serif', fontWeight: 700, fontSize: '1rem', color: TEXT, mb: 0.15 }}>Nutrient Concentration</Typography>
+                <Typography sx={{ fontFamily: '"Inter", sans-serif', fontWeight: 700, fontSize: '1rem', color: TEXT, mb: 0.15 }}>Nutrient Concentration</Typography>
                 <Typography sx={{ fontSize: '0.6rem', color: MUTED, fontFamily: '"DM Mono", monospace' }}>NPK · Real-time soil analysis</Typography>
               </Box>
               <Box sx={{ display: 'inline-flex', px: 1, py: 0.4, borderRadius: '20px', bgcolor: alpha(ACCENT, 0.1), border: `1px solid ${alpha(ACCENT, 0.2)}` }}>
@@ -529,7 +562,7 @@ const Dashboard: React.FC = () => {
           <Box sx={{ bgcolor: CARD, borderRadius: '16px', border: `1px solid ${BORDER}`, boxShadow: SHADOW, overflow: 'hidden' }}>
             <Box sx={{ px: 2.5, pt: 2, pb: 1.75, borderBottom: `1px solid ${BORDER}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <Box>
-                <Typography sx={{ fontFamily: '"Syne", sans-serif', fontWeight: 700, fontSize: '1rem', color: TEXT, mb: 0.15 }}>Spatial Monitoring</Typography>
+                <Typography sx={{ fontFamily: '"Inter", sans-serif', fontWeight: 700, fontSize: '1rem', color: TEXT, mb: 0.15 }}>Spatial Monitoring</Typography>
                 <Typography sx={{ fontSize: '0.6rem', color: MUTED, fontFamily: '"DM Mono", monospace' }}>Geo-node streaming · 4 active zones</Typography>
               </Box>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6, px: 1, py: 0.4, borderRadius: '20px', bgcolor: alpha(TEAL, 0.08), border: `1px solid ${alpha(TEAL, 0.15)}` }}>
@@ -555,7 +588,7 @@ const Dashboard: React.FC = () => {
                       <item.icon sx={{ fontSize: 14, color: item.color }} />
                     </Box>
                     <Box>
-                      <Typography sx={{ fontSize: '0.74rem', fontWeight: 600, color: TEXT, fontFamily: '"Figtree", sans-serif' }}>{item.label}</Typography>
+                      <Typography sx={{ fontSize: '0.74rem', fontWeight: 600, color: TEXT, fontFamily: '"Inter", sans-serif' }}>{item.label}</Typography>
                       <Typography sx={{ fontSize: '0.58rem', color: MUTED, fontFamily: '"DM Mono", monospace' }}>{item.sub}</Typography>
                     </Box>
                   </Box>
@@ -565,23 +598,23 @@ const Dashboard: React.FC = () => {
               {/* Field map */}
               <Box sx={{
                 minHeight: 180, position: 'relative', overflow: 'hidden',
-                background: 'linear-gradient(160deg, #081208 0%, #0c1e0d 40%, #091508 70%, #0e1e0c 100%)',
+                background: 'linear-gradient(160deg, #E8F5E9 0%, #C8E6C9 40%, #A5D6A7 70%, #81C784 100%)',
               }}>
                 {/* Radial glow nodes */}
                 {[{ x: 55, y: 45, r: 0.12 }, { x: 28, y: 62, r: 0.08 }, { x: 72, y: 28, r: 0.1 }].map((g, i) => (
                   <Box key={i} sx={{ position: 'absolute', inset: 0, pointerEvents: 'none',
-                    backgroundImage: `radial-gradient(ellipse at ${g.x}% ${g.y}%, rgba(168,255,62,${g.r}) 0%, transparent 50%)` }} />
+                    backgroundImage: `radial-gradient(ellipse at ${g.x}% ${g.y}%, rgba(40,167,69,${g.r}) 0%, transparent 50%)` }} />
                 ))}
                 {/* Grid lines */}
                 {[15, 35, 55, 75].map((pct, i) => (
-                  <Box key={i} sx={{ position: 'absolute', top: `${pct}%`, left: '3%', right: '3%', height: '1px', background: `rgba(168,255,62,${0.06 + i * 0.02})`, pointerEvents: 'none' }} />
+                  <Box key={i} sx={{ position: 'absolute', top: `${pct}%`, left: '3%', right: '3%', height: '1px', background: `rgba(40,167,69,${0.06 + i * 0.02})`, pointerEvents: 'none' }} />
                 ))}
                 {[20, 40, 60, 80].map((pct, i) => (
-                  <Box key={i} sx={{ position: 'absolute', left: `${pct}%`, top: '3%', bottom: '3%', width: '1px', background: `rgba(168,255,62,${0.04 + i * 0.01})`, pointerEvents: 'none' }} />
+                  <Box key={i} sx={{ position: 'absolute', left: `${pct}%`, top: '3%', bottom: '3%', width: '1px', background: `rgba(40,167,69,${0.04 + i * 0.01})`, pointerEvents: 'none' }} />
                 ))}
                 {/* Active zone */}
                 <Box sx={{ position: 'absolute', bottom: '25%', right: '28%', width: 85, height: 50, borderRadius: '38%',
-                  border: `1.5px solid rgba(168,255,62,0.5)`, boxShadow: '0 0 20px rgba(168,255,62,0.18), inset 0 0 14px rgba(168,255,62,0.08)', pointerEvents: 'none' }} />
+                  border: `1.5px solid rgba(40,167,69,0.5)`, boxShadow: '0 0 20px rgba(40,167,69,0.18), inset 0 0 14px rgba(40,167,69,0.08)', pointerEvents: 'none' }} />
                 {/* Sensor dots */}
                 {[{ x: 28, y: 42, main: true }, { x: 52, y: 35, main: false }, { x: 68, y: 60, main: false }, { x: 38, y: 68, main: false }].map((pos, i) => (
                   <Box key={i} sx={{
@@ -605,12 +638,12 @@ const Dashboard: React.FC = () => {
 
           {/* AI CTA */}
           <Box onClick={() => navigate('/voice-chatbot')} sx={{
-            bgcolor: CARD, borderRadius: '14px', border: `1px solid rgba(168,255,62,0.12)`,
+            bgcolor: CARD, borderRadius: '14px', border: `1px solid rgba(40,167,69,0.12)`,
             boxShadow: SHADOW, p: 2, cursor: 'pointer',
             display: 'flex', alignItems: 'center', gap: 1.5,
-            background: `linear-gradient(135deg, rgba(168,255,62,0.05) 0%, rgba(0,229,198,0.03) 100%)`,
+            background: `linear-gradient(135deg, rgba(40,167,69,0.05) 0%, rgba(32,201,151,0.03) 100%)`,
             transition: 'all 0.2s ease',
-            '&:hover': { boxShadow: `0 4px 24px ${alpha(ACCENT, 0.15)}`, transform: 'translateY(-1px)', borderColor: 'rgba(168,255,62,0.25)' },
+            '&:hover': { boxShadow: `0 4px 24px ${alpha(ACCENT, 0.15)}`, transform: 'translateY(-1px)', borderColor: 'rgba(40,167,69,0.25)' },
           }}>
             <Box sx={{ width: 44, height: 44, borderRadius: '12px', background: `linear-gradient(135deg, ${alpha(ACCENT, 0.2)}, ${alpha(TEAL, 0.1)})`,
               border: `1px solid ${alpha(ACCENT, 0.25)}`, display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -618,7 +651,7 @@ const Dashboard: React.FC = () => {
               <MicIcon sx={{ fontSize: 20, color: ACCENT }} />
             </Box>
             <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Typography sx={{ fontSize: '0.86rem', fontWeight: 700, color: TEXT, fontFamily: '"Syne", sans-serif', mb: 0.15 }}>AI Crop Advisory</Typography>
+              <Typography sx={{ fontSize: '0.86rem', fontWeight: 700, color: TEXT, fontFamily: '"Inter", sans-serif', mb: 0.15 }}>AI Crop Advisory</Typography>
               <Typography sx={{ fontSize: '0.6rem', color: alpha(ACCENT, 0.7), fontFamily: '"DM Mono", monospace', letterSpacing: '0.07em' }}>
                 VOICE + CHAT ASSISTANT · TAP TO OPEN
               </Typography>
@@ -630,64 +663,112 @@ const Dashboard: React.FC = () => {
         {/* ═══ RIGHT COLUMN ═══ */}
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
 
-          {/* SYSTEM HEALTH */}
+          {/* FERTILIZER RECOMMENDATIONS */}
           <Box sx={{ bgcolor: CARD, borderRadius: '16px', border: `1px solid ${BORDER}`, boxShadow: SHADOW, overflow: 'hidden' }}>
-            <Box sx={{ px: 2.25, pt: 2, pb: 1.75, borderBottom: `1px solid ${BORDER}` }}>
-              <Typography sx={{ fontFamily: '"Syne", sans-serif', fontWeight: 700, fontSize: '0.95rem', color: TEXT, mb: 0.15 }}>System Health</Typography>
-              <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
-                <Typography sx={{ fontFamily: '"DM Mono", monospace', fontSize: '2rem', fontWeight: 700, color: ACCENT, lineHeight: 1,
-                  textShadow: `0 0 16px ${alpha(ACCENT, 0.4)}` }}>
-                  {loading ? '—' : `${healthScore}.${Math.floor(Math.random() * 9)}${Math.floor(Math.random() * 9)}`}
-                </Typography>
-                <Typography sx={{ fontFamily: '"DM Mono", monospace', fontSize: '0.9rem', color: alpha(ACCENT, 0.4) }}>%</Typography>
-                <Box sx={{ ml: 'auto', px: 0.85, py: 0.3, borderRadius: '20px', bgcolor: alpha(ACCENT, 0.1), border: `1px solid ${alpha(ACCENT, 0.2)}` }}>
-                  <Typography sx={{ fontSize: '0.5rem', fontWeight: 700, color: ACCENT, fontFamily: '"DM Mono", monospace', letterSpacing: '0.1em' }}>STABLE</Typography>
-                </Box>
+            <Box sx={{ px: 2.25, pt: 2, pb: 1.75, borderBottom: `1px solid ${BORDER}`, display: 'flex', alignItems: 'center', gap: 1.25 }}>
+              <Typography sx={{ fontSize: '1.3rem' }}>🌾</Typography>
+              <Box>
+                <Typography sx={{ fontFamily: '"Inter", sans-serif', fontWeight: 800, fontSize: '0.95rem', color: TEXT, mb: 0.15 }}>{t('khaadAdvice')}</Typography>
+                <Typography sx={{ fontSize: '0.7rem', color: MUTED, fontWeight: 500 }}>{t('soilBased')}</Typography>
               </Box>
             </Box>
-
-            {/* Health bars */}
-            <Box sx={{ p: 2 }}>
-              {[
-                { label: 'Sensor Network',  sub: 'All nodes reporting',       val: 98,  color: ACCENT },
-                { label: 'Data Pipeline',   sub: 'Stream latency 12ms',        val: 94,  color: TEAL },
-                { label: 'Edge Gateway',    sub: 'Packet loss 0.02%',          val: 100, color: BLUE },
-              ].map(item => (
-                <Box key={item.label} sx={{ mb: 1.5, '&:last-child': { mb: 0 } }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.6 }}>
-                    <Box>
-                      <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, color: TEXT, fontFamily: '"Figtree", sans-serif' }}>{item.label}</Typography>
-                      <Typography sx={{ fontSize: '0.56rem', color: MUTED, fontFamily: '"DM Mono", monospace' }}>{item.sub}</Typography>
-                    </Box>
-                    <Typography sx={{ fontFamily: '"DM Mono", monospace', fontSize: '0.78rem', fontWeight: 700, color: item.color }}>{item.val}%</Typography>
+            <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {(!latest || (latest.nitrogen >= 40 && latest.phosphorus >= 30 && latest.potassium >= 30 && healthScore > 80)) ? (
+                <Box sx={{ display: 'flex', gap: 1.5 }}>
+                  <Box sx={{ width: 36, height: 36, borderRadius: '10px', bgcolor: alpha(ACCENT, 0.1), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Typography sx={{ fontSize: '1.1rem' }}>✅</Typography>
                   </Box>
-                  <Box sx={{ height: 4, bgcolor: alpha(item.color, 0.1), borderRadius: 2, overflow: 'hidden' }}>
-                    <Box sx={{ height: '100%', width: `${item.val}%`, background: `linear-gradient(90deg, ${alpha(item.color, 0.6)}, ${item.color})`,
-                      borderRadius: 2, boxShadow: `0 0 6px ${alpha(item.color, 0.35)}`, transition: 'width 1s ease' }} />
+                  <Box>
+                    <Typography sx={{ fontSize: '0.88rem', fontWeight: 700, color: TEXT }}>{t('cropHealthy')}</Typography>
+                    <Typography sx={{ fontSize: '0.75rem', color: MUTED, mt: 0.25, lineHeight: 1.4 }}>{t('cropHealthySub')}</Typography>
                   </Box>
                 </Box>
-              ))}
+              ) : (
+                <>
+                  {latest.nitrogen < 40 && (
+                    <Box sx={{ display: 'flex', gap: 1.5 }}>
+                      <Box sx={{ width: 36, height: 36, borderRadius: '10px', bgcolor: alpha(ACCENT, 0.1), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <Typography sx={{ fontSize: '1.1rem' }}>⚪</Typography>
+                      </Box>
+                      <Box>
+                        <Typography sx={{ fontSize: '0.88rem', fontWeight: 700, color: TEXT }}>{t('urea')}</Typography>
+                        <Typography sx={{ fontSize: '0.75rem', color: MUTED, mt: 0.25, lineHeight: 1.4 }}>{t('ureaLowN')}</Typography>
+                      </Box>
+                    </Box>
+                  )}
+                  {(latest.phosphorus < 30 || latest.potassium < 30) && (
+                    <Box sx={{ display: 'flex', gap: 1.5 }}>
+                      <Box sx={{ width: 36, height: 36, borderRadius: '10px', bgcolor: alpha(TEAL, 0.1), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <Typography sx={{ fontSize: '1.1rem' }}>🧪</Typography>
+                      </Box>
+                      <Box>
+                        <Typography sx={{ fontSize: '0.88rem', fontWeight: 700, color: TEXT }}>{t('npk')}</Typography>
+                        <Typography sx={{ fontSize: '0.75rem', color: MUTED, mt: 0.25, lineHeight: 1.4 }}>{t('npkLowP')}</Typography>
+                      </Box>
+                    </Box>
+                  )}
+                  {healthScore < 80 && (
+                    <Box sx={{ display: 'flex', gap: 1.5 }}>
+                      <Box sx={{ width: 36, height: 36, borderRadius: '10px', bgcolor: alpha(AMBER, 0.1), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <Typography sx={{ fontSize: '1.1rem' }}>🍂</Typography>
+                      </Box>
+                      <Box>
+                        <Typography sx={{ fontSize: '0.88rem', fontWeight: 700, color: TEXT }}>{t('compost')}</Typography>
+                        <Typography sx={{ fontSize: '0.75rem', color: MUTED, mt: 0.25, lineHeight: 1.4 }}>{t('compostAdvice')}</Typography>
+                      </Box>
+                    </Box>
+                  )}
+                </>
+              )}
             </Box>
           </Box>
 
-          {/* ACTIVE RESOURCE LOADS */}
+          {/* CROP PROTECTION */}
           <Box sx={{ bgcolor: CARD, borderRadius: '16px', border: `1px solid ${BORDER}`, boxShadow: SHADOW, overflow: 'hidden' }}>
-            <Box sx={{ px: 2.25, pt: 2, pb: 1.75, borderBottom: `1px solid ${BORDER}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Typography sx={{ fontFamily: '"Syne", sans-serif', fontWeight: 700, fontSize: '0.95rem', color: TEXT }}>Active Resource Loads</Typography>
-              <Typography onClick={() => navigate('/irrigation')} sx={{ fontSize: '0.58rem', fontWeight: 700, color: MUTED, fontFamily: '"DM Mono", monospace', cursor: 'pointer', letterSpacing: '0.08em', textTransform: 'uppercase', '&:hover': { color: ACCENT } }}>
-                Manage →
-              </Typography>
+            <Box sx={{ px: 2.25, pt: 2, pb: 1.75, borderBottom: `1px solid ${BORDER}`, display: 'flex', alignItems: 'center', gap: 1.25 }}>
+              <Typography sx={{ fontSize: '1.3rem' }}>🛡️</Typography>
+              <Box>
+                <Typography sx={{ fontFamily: '"Inter", sans-serif', fontWeight: 800, fontSize: '0.95rem', color: TEXT, mb: 0.15 }}>{t('pestControl')}</Typography>
+                <Typography sx={{ fontSize: '0.7rem', color: MUTED, fontWeight: 500 }}>{t('protectCrop')}</Typography>
+              </Box>
             </Box>
-
-            <Box sx={{ p: 1.75 }}>
-              <ResourceBar label="Nutrient Injection" sublabel={`Sector ${onlineNodes || 'A-12'} · ${irrigationOn ? 'Active Flow' : 'Standby'}`}
-                value={irrigationOn ? 67 : 12} color={ACCENT} status={irrigationOn ? 'Active' : 'Standby'} />
-              <ResourceBar label="Thermal Regulation" sublabel="Laboratory Core"
-                value={42} color={TEAL} status="Controlled" />
-              <ResourceBar label="Emergency Desiccation" sublabel="Unit 214.8kw"
-                value={18} color={AMBER} status="Standby" />
-              <ResourceBar label="Grid Feed-in" sublabel="Renewable · Solar"
-                value={89} color={BLUE} status="Funded" />
+            <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {(!latest || (latest.temperature < 28 && latest.humidity < 60)) ? (
+                <Box sx={{ display: 'flex', gap: 1.5 }}>
+                  <Box sx={{ width: 36, height: 36, borderRadius: '10px', bgcolor: alpha(ACCENT, 0.1), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Typography sx={{ fontSize: '1.1rem' }}>👍</Typography>
+                  </Box>
+                  <Box>
+                    <Typography sx={{ fontSize: '0.88rem', fontWeight: 700, color: TEXT }}>{t('noPests')}</Typography>
+                    <Typography sx={{ fontSize: '0.75rem', color: MUTED, mt: 0.25, lineHeight: 1.4 }}>{t('noPestsSub')}</Typography>
+                  </Box>
+                </Box>
+              ) : (
+                <>
+                  {latest.temperature >= 28 && (
+                    <Box sx={{ display: 'flex', gap: 1.5 }}>
+                      <Box sx={{ width: 36, height: 36, borderRadius: '10px', bgcolor: alpha(ACCENT, 0.1), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <Typography sx={{ fontSize: '1.1rem' }}>🌿</Typography>
+                      </Box>
+                      <Box>
+                        <Typography sx={{ fontSize: '0.88rem', fontWeight: 700, color: TEXT }}>{t('neemOil')}</Typography>
+                        <Typography sx={{ fontSize: '0.75rem', color: MUTED, mt: 0.25, lineHeight: 1.4 }}>{t('neemAdvice')}</Typography>
+                      </Box>
+                    </Box>
+                  )}
+                  {latest.humidity >= 60 && (
+                    <Box sx={{ display: 'flex', gap: 1.5 }}>
+                      <Box sx={{ width: 36, height: 36, borderRadius: '10px', bgcolor: alpha(BLUE, 0.1), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <Typography sx={{ fontSize: '1.1rem' }}>💦</Typography>
+                      </Box>
+                      <Box>
+                        <Typography sx={{ fontSize: '0.88rem', fontWeight: 700, color: TEXT }}>{t('fungicide')}</Typography>
+                        <Typography sx={{ fontSize: '0.75rem', color: MUTED, mt: 0.25, lineHeight: 1.4 }}>{t('fungiAdvice')}</Typography>
+                      </Box>
+                    </Box>
+                  )}
+                </>
+              )}
             </Box>
           </Box>
 
@@ -696,10 +777,10 @@ const Dashboard: React.FC = () => {
             bgcolor: CARD, borderRadius: '16px', border: `1px solid ${BORDER}`,
             boxShadow: SHADOW, overflow: 'hidden', cursor: 'pointer',
             transition: 'border-color 0.2s',
-            '&:hover': { borderColor: 'rgba(168,255,62,0.2)' },
+            '&:hover': { borderColor: 'rgba(40,167,69,0.2)' },
           }}>
             <Box sx={{ p: 1.75, display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `1px solid ${BORDER}` }}>
-              <Typography sx={{ fontFamily: '"Syne", sans-serif', fontWeight: 700, fontSize: '0.9rem', color: TEXT }}>Live Feed</Typography>
+              <Typography sx={{ fontFamily: '"Inter", sans-serif', fontWeight: 700, fontSize: '0.9rem', color: TEXT }}>Live Feed</Typography>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, px: 0.85, py: 0.35, borderRadius: '20px', bgcolor: alpha(RED, 0.1), border: `1px solid ${alpha(RED, 0.2)}` }}>
                 <Box sx={{ width: 5, height: 5, borderRadius: '50%', bgcolor: RED, animation: 'pulse-dot 1.5s ease-in-out infinite' }} />
                 <Typography sx={{ fontSize: '0.5rem', fontWeight: 700, color: RED, fontFamily: '"DM Mono", monospace', letterSpacing: '0.1em' }}>RECORDING</Typography>
@@ -707,9 +788,9 @@ const Dashboard: React.FC = () => {
             </Box>
             <Box sx={{
               height: 140, position: 'relative', overflow: 'hidden',
-              background: 'linear-gradient(160deg, #081208 0%, #0c2010 50%, #091a0b 100%)',
+              background: 'linear-gradient(160deg, #E8F5E9 0%, #C8E6C9 50%, #A5D6A7 100%)',
             }}>
-              <Box sx={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 50% 50%, rgba(168,255,62,0.07) 0%, transparent 65%)' }} />
+              <Box sx={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 50% 50%, rgba(40,167,69,0.07) 0%, transparent 65%)' }} />
               {/* Scanline effect */}
               <Box sx={{ position: 'absolute', left: 0, right: 0, height: 2, background: `linear-gradient(90deg, transparent, ${alpha(ACCENT, 0.3)}, transparent)`,
                 animation: 'scan-line 3s linear infinite', top: 0 }} />
@@ -736,7 +817,7 @@ const Dashboard: React.FC = () => {
           {/* RECENT ALERTS MINI */}
           <Box sx={{ bgcolor: CARD, borderRadius: '16px', border: `1px solid ${BORDER}`, boxShadow: SHADOW, overflow: 'hidden' }}>
             <Box sx={{ px: 2.25, pt: 2, pb: 1.75, borderBottom: `1px solid ${BORDER}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Typography sx={{ fontFamily: '"Syne", sans-serif', fontWeight: 700, fontSize: '0.95rem', color: TEXT }}>Recent Alerts</Typography>
+              <Typography sx={{ fontFamily: '"Inter", sans-serif', fontWeight: 700, fontSize: '0.95rem', color: TEXT }}>Recent Alerts</Typography>
               <Typography onClick={() => navigate('/security')} sx={{ fontSize: '0.58rem', fontWeight: 700, color: MUTED, fontFamily: '"DM Mono", monospace', cursor: 'pointer', letterSpacing: '0.08em', textTransform: 'uppercase', '&:hover': { color: ACCENT } }}>
                 View all →
               </Typography>
@@ -749,7 +830,7 @@ const Dashboard: React.FC = () => {
                 return (
                   <Box key={alert.id} sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, p: 1, borderRadius: '9px', bgcolor: alpha(c, 0.04), borderLeft: `2px solid ${c}` }}>
                     <Box sx={{ flex: 1, minWidth: 0 }}>
-                      <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: TEXT, fontFamily: '"Figtree", sans-serif', lineHeight: 1.3 }} noWrap>{alert.title}</Typography>
+                      <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: TEXT, fontFamily: '"Inter", sans-serif', lineHeight: 1.3 }} noWrap>{alert.title}</Typography>
                       <Typography sx={{ fontSize: '0.57rem', color: MUTED, fontFamily: '"DM Mono", monospace' }}>{getTimeAgo(new Date(alert.timestamp))}</Typography>
                     </Box>
                   </Box>
@@ -757,7 +838,7 @@ const Dashboard: React.FC = () => {
               }) : (
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1.25, borderRadius: '9px', bgcolor: alpha(ACCENT, 0.04), borderLeft: `2px solid ${ACCENT}` }}>
                   <CheckIcon sx={{ fontSize: 13, color: ACCENT }} />
-                  <Typography sx={{ fontSize: '0.7rem', color: ACCENT, fontFamily: '"Figtree", sans-serif', fontWeight: 500 }}>No active alerts</Typography>
+                  <Typography sx={{ fontSize: '0.7rem', color: ACCENT, fontFamily: '"Inter", sans-serif', fontWeight: 500 }}>No active alerts</Typography>
                 </Box>
               )}
             </Box>

@@ -4,6 +4,9 @@ import Probe from '../models/Probe';
 import User from '../models/User';
 import logger from '../config/logger';
 import { waitForCommand, consumeCommand, getPendingCommand } from '../services/commandQueue';
+import { validate } from '../middleware/validate';
+import { readingBodySchema, commandQuerySchema, statusQuerySchema } from '../schemas/device.schemas';
+import { UnauthorizedError, NotFoundError } from '../middleware/errorHandler';
 
 const router = Router();
 
@@ -44,7 +47,7 @@ const deviceAuth = (req: Request, res: Response, next: NextFunction): void => {
   const validKey = process.env.DEVICE_API_KEY || 'fertobot-esp32-key-2024';
 
   if (!key || key !== validKey) {
-    res.status(401).json({ success: false, message: 'Invalid device API key' });
+    next(new UnauthorizedError('Invalid device API key'));
     return;
   }
   next();
@@ -84,7 +87,7 @@ async function findOrCreateProbe(probeUuid: string) {
  * POST /api/device/reading
  * Called by ESP32 every 30 s. Auto-creates the probe if unknown.
  */
-router.post('/reading', deviceAuth, async (req: Request, res: Response, next: NextFunction) => {
+router.post('/reading', deviceAuth, validate('body', readingBodySchema), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const {
       probeUuid,
@@ -92,14 +95,14 @@ router.post('/reading', deviceAuth, async (req: Request, res: Response, next: Ne
       temperature,
       humidity,
       pH,
-      conductivity = 0,
-      nitrogen = 0,
-      phosphorus = 0,
-      potassium = 0,
-      waterTankLevel = 0,
-      batteryLevel = 100,
-      signalStrength: rawSignal = 100,
-      motionDetected = false,
+      conductivity,
+      nitrogen,
+      phosphorus,
+      potassium,
+      waterTankLevel,
+      batteryLevel,
+      signalStrength: rawSignal,
+      motionDetected,
     } = req.body;
 
     // ESP32 sends WiFi RSSI as a negative dBm value (e.g. -70).
@@ -107,11 +110,6 @@ router.post('/reading', deviceAuth, async (req: Request, res: Response, next: Ne
     const signalStrength = typeof rawSignal === 'number' && rawSignal < 0
       ? Math.round(Math.max(0, Math.min(100, (rawSignal + 100) * 2)))
       : Math.min(100, Math.max(0, rawSignal));
-
-    if (!probeUuid || soilMoisture === undefined || temperature === undefined) {
-      res.status(400).json({ success: false, message: 'Missing required fields: probeUuid, soilMoisture, temperature' });
-      return;
-    }
 
     const probe = await findOrCreateProbe(probeUuid);
     if (!probe) {
@@ -179,12 +177,8 @@ router.post('/reading', deviceAuth, async (req: Request, res: Response, next: Ne
  * Returns 204 after 25 s if nothing arrives (ESP32 should reconnect immediately).
  * No MongoDB involved — purely in-memory.
  */
-router.get('/command/wait', deviceAuth, (req: Request, res: Response) => {
-  const { probeUuid } = req.query as { probeUuid?: string };
-  if (!probeUuid) {
-    res.status(400).json({ success: false, message: 'Missing probeUuid' });
-    return;
-  }
+router.get('/command/wait', deviceAuth, validate('query', commandQuerySchema), (req: Request, res: Response) => {
+  const { probeUuid } = req.query as { probeUuid: string };
   logger.info(`ESP32 ${probeUuid} connected — holding for command`);
   waitForCommand(probeUuid, res, req, 25000);
 });
@@ -194,22 +188,12 @@ router.get('/command/wait', deviceAuth, (req: Request, res: Response) => {
  * Polled by ESP32 every 10 s to fetch pending relay/buzzer commands.
  * Returns 204 when no command is queued.
  */
-router.get('/command', deviceAuth, async (req: Request, res: Response, next: NextFunction) => {
+router.get('/command', deviceAuth, validate('query', commandQuerySchema), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { probeUuid } = req.query;
-    if (!probeUuid) {
-      res.status(400).json({ success: false, message: 'Missing probeUuid' });
-      return;
-    }
+    const { probeUuid } = req.query as { probeUuid: string };
 
-    const probe = await Probe.findOne({ uuid: probeUuid as string });
-    if (!probe) {
-      res.status(204).end();
-      return;
-    }
-
-    // Check in-memory queue first (same as long-poll/telemetry)
-    const command = consumeCommand(probeUuid as string) || probe.metadata?.pendingCommand;
+    // In-memory queue is the only delivery path (long-poll / telemetry / short-poll all share it).
+    const command = consumeCommand(probeUuid as string);
     if (!command) {
       res.status(204).end();
       return;
@@ -217,13 +201,6 @@ router.get('/command', deviceAuth, async (req: Request, res: Response, next: Nex
 
     logger.info(`Command delivered to ESP32 ${probeUuid} (short-poll): ${JSON.stringify(command)}`);
     res.status(200).json(command);
-    
-    // Clear DB metadata if that's where it came from
-    if (probe.metadata?.pendingCommand) {
-      Probe.findByIdAndUpdate(probe._id, { $unset: { 'metadata.pendingCommand': 1 } }).catch(
-        (err: Error) => logger.error(`Failed to clear command for ${probeUuid}: ${err.message}`)
-      );
-    }
   } catch (error) {
     next(error);
   }
@@ -255,13 +232,9 @@ router.get('/ping', (_req: Request, res: Response) => {
  * No API key required — for browser-based debugging.
  * Shows whether the probe exists and if a command is pending.
  */
-router.get('/status', async (req: Request, res: Response, next: NextFunction) => {
+router.get('/status', validate('query', statusQuerySchema), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { probeUuid } = req.query;
-    if (!probeUuid) {
-      res.status(400).json({ success: false, message: 'Missing probeUuid' });
-      return;
-    }
+    const { probeUuid } = req.query as { probeUuid: string };
     const probe = await Probe.findOne({ uuid: probeUuid as string });
     if (!probe) {
       res.json({
@@ -278,7 +251,7 @@ router.get('/status', async (req: Request, res: Response, next: NextFunction) =>
         isActive: probe.isActive,
         status: probe.status,
         lastActive: probe.lastActive,
-        pendingCommand: getPendingCommand(probe.uuid) || probe.metadata?.pendingCommand || null,
+        pendingCommand: getPendingCommand(probe.uuid),
       },
     });
   } catch (error) {

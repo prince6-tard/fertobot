@@ -1,11 +1,26 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
 import Probe from '../models/Probe';
 import SensorReading from '../models/SensorReading';
+import { validate } from '../middleware/validate';
+import { chatBodySchema } from '../schemas/assistant.schemas';
 
 const router = Router();
 
 const ELEVENLABS_AGENT_ID = 'agent_8401kc0pqhv4fmnr13frj0r4erer';
+const GEMINI_MODEL = 'gemini-1.5-flash';
+
+// Lazily build the Gemini client/model once per process. Reusing the client
+// avoids constructing a new HTTP/transport layer on every chat request.
+let geminiModel: GenerativeModel | null = null;
+function getGeminiModel(): GenerativeModel | null {
+  if (geminiModel) return geminiModel;
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return null;
+  const genAI = new GoogleGenerativeAI(apiKey);
+  geminiModel = genAI.getGenerativeModel({ model: GEMINI_MODEL });
+  return geminiModel;
+}
 
 /**
  * GET /api/assistant/elevenlabs-token
@@ -106,17 +121,12 @@ function buildFallbackReply(
   return `${probeName} live data — Temp: ${r.temperature.toFixed(1)}°C, Moisture: ${r.soilMoisture.toFixed(1)}%, pH: ${r.pH > 0 ? r.pH.toFixed(1) : 'N/A'}, Tank: ${r.waterTankLevel}%, Battery: ${r.batteryLevel}%. Kuch aur poochhna hai?`;
 }
 
-router.post('/chat', async (req: Request, res: Response, next: NextFunction) => {
+router.post('/chat', validate('body', chatBodySchema), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { message, history = [] } = req.body as {
       message: string;
       history: { role: 'user' | 'model'; text: string }[];
     };
-
-    if (!message) {
-      res.status(400).json({ success: false, message: 'Message is required' });
-      return;
-    }
 
     // Fetch latest live data
     const probes = await Probe.find({ isActive: true }).limit(5).lean();
@@ -139,8 +149,9 @@ router.post('/chat', async (req: Request, res: Response, next: NextFunction) => 
       waterTankLevel: reading?.waterTankLevel,
     }));
 
-    // If no Gemini key, use built-in live-data reply (no external API needed)
-    if (!process.env.GEMINI_API_KEY) {
+    // Reuse the process-wide Gemini client/model; fall back if no key configured.
+    const model = getGeminiModel();
+    if (!model) {
       const reply = buildFallbackReply(message, latestReadings as Parameters<typeof buildFallbackReply>[1]);
       res.json({ success: true, data: { reply, farmDataSnapshot } });
       return;
@@ -163,9 +174,6 @@ ${farmContext}
 RULES: Hindi mein jawab de (Hinglish theek hai). Simple bhasha. Specific numbers de. Max 3-4 sentences.`;
 
     try {
-      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-      const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-
       const chat = model.startChat({
         history: [
           { role: 'user', parts: [{ text: systemPrompt }] },
