@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  Box, Typography, InputBase, Badge, Avatar, IconButton,
+  Box, Typography, Badge, Avatar, IconButton,
   BottomNavigation, BottomNavigationAction,
   useMediaQuery, useTheme,
 } from '@mui/material';
@@ -12,7 +12,6 @@ import {
   Mic as AIIcon,
   Settings as SettingsIcon,
   HelpOutline as SupportIcon,
-  Search as SearchIcon,
   Sensors as SensorsIcon,
   Description as LogsIcon,
   Logout as LogoutIcon,
@@ -220,68 +219,81 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         {/* TOPBAR */}
         <Box sx={{
           position: 'sticky', top: 0, zIndex: 1100,
-          height: 64, display: 'flex', alignItems: 'center',
-          px: { xs: 2, md: 3 }, gap: 1.5,
+          height: { xs: 58, md: 64 }, display: 'flex', alignItems: 'center',
+          px: { xs: 1.5, sm: 2, md: 3 }, gap: { xs: 1, sm: 1.5 },
           bgcolor: TOP_BG,
           borderBottom: '1px solid rgba(0,0,0,0.06)',
           flexShrink: 0,
         }}>
-
-          {/* Search */}
-          <Box sx={{
-            flex: 1, maxWidth: 400, display: 'flex', alignItems: 'center',
-            gap: 1, px: 1.5, py: 0.8, borderRadius: '10px',
-            backgroundColor: '#F3F4F6',
-            border: '1px solid transparent',
-            transition: 'border-color 0.2s, background-color 0.2s',
-            '&:focus-within': { borderColor: 'rgba(26,127,55,0.3)', backgroundColor: '#FFFFFF' },
-          }}>
-            <SearchIcon sx={{ fontSize: 18, color: '#6B7280' }} />
-            <InputBase
-              placeholder={t('searchPlaceholder')}
-              sx={{
-                flex: 1, fontSize: '0.85rem', color: '#1F2937',
-                fontFamily: '"Inter", sans-serif',
-                '& input::placeholder': { color: '#9CA3AF', opacity: 1 },
-              }}
+          {/* Mobile brand logo */}
+          <Box sx={{ display: { xs: 'flex', md: 'none' }, alignItems: 'center', gap: 1 }}>
+            <Box
+              component="img"
+              src="/images/fertobot-logo.png"
+              alt="FertoBot Logo"
+              sx={{ height: 26, width: 'auto' }}
             />
+          </Box>
+
+          {/* Desktop breadcrumb / system indicator */}
+          <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', gap: 1 }}>
+            <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#1A7F37' }} />
+            <Typography sx={{ fontSize: '0.84rem', fontWeight: 600, color: '#1F2937', fontFamily: '"Inter", sans-serif' }}>
+              FertoBot Farm OS
+            </Typography>
+            <Typography sx={{ fontSize: '0.72rem', color: '#6B7280', fontFamily: '"DM Mono", monospace' }}>
+              / {t(
+                currentPath.includes('voice') ? 'voice-chatbot' :
+                currentPath.includes('security') ? 'security' :
+                currentPath.includes('probes') ? 'probes' :
+                currentPath.includes('irrigation') ? 'irrigation' :
+                currentPath.includes('profile') ? 'profile' : 'overview'
+              )}
+            </Typography>
           </Box>
 
           <Box sx={{ flex: 1 }} />
 
           {/* Live status pill */}
           <Box sx={{
-            display: { xs: 'none', md: 'flex' }, alignItems: 'center', gap: 0.75,
-            px: 1.5, py: 0.6, borderRadius: '20px',
+            display: { xs: 'none', sm: 'flex' }, alignItems: 'center', gap: 0.75,
+            px: 1.25, py: 0.5, borderRadius: '20px',
             bgcolor: 'rgba(40,167,69,0.1)', border: '1px solid rgba(40,167,69,0.2)',
           }}>
             <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: '#28A745',
               animation: 'pulse-dot 2s ease-in-out infinite' }} />
-            <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: '#1A7F37', letterSpacing: '0.05em' }}>
+            <Typography sx={{ fontSize: '0.68rem', fontWeight: 700, color: '#1A7F37', letterSpacing: '0.05em' }}>
               {t('liveActive')}
             </Typography>
           </Box>
 
-          <IconButton size="small" onClick={toggleLang} sx={{ color: '#6B7280', '&:hover': { color: '#1A7F37', bgcolor: 'rgba(26,127,55,0.08)' } }} title="Toggle Language (English/Hindi)">
-            <LanguageIcon sx={{ fontSize: 22 }} />
-            <Typography sx={{ fontSize: '0.6rem', ml: 0.5, fontWeight: 700 }}>{lang.toUpperCase()}</Typography>
+          {/* Language toggle */}
+          <IconButton size="small" onClick={toggleLang} sx={{ color: '#6B7280', border: '1px solid rgba(0,0,0,0.08)', borderRadius: '8px', px: 1, py: 0.5, '&:hover': { color: '#1A7F37', borderColor: 'rgba(26,127,55,0.3)', bgcolor: 'rgba(26,127,55,0.06)' } }} title="Toggle Language (English/Hindi)">
+            <LanguageIcon sx={{ fontSize: 18 }} />
+            <Typography sx={{ fontSize: '0.68rem', ml: 0.5, fontWeight: 700 }}>{lang.toUpperCase()}</Typography>
           </IconButton>
-          <IconButton size="small" sx={{ color: '#6B7280', '&:hover': { color: '#1A7F37', bgcolor: 'rgba(26,127,55,0.08)' } }}>
+
+          {/* Alerts shortcut */}
+          <IconButton size="small" onClick={() => navigate('/security')} sx={{ color: '#6B7280', '&:hover': { color: '#1A7F37', bgcolor: 'rgba(26,127,55,0.08)' } }} title="Security & Alerts">
             <Badge badgeContent={3} sx={{ '& .MuiBadge-badge': { bgcolor: '#DC3545', fontSize: '0.6rem', color: '#fff' } }}>
-              <AlertsIcon sx={{ fontSize: 22 }} />
+              <AlertsIcon sx={{ fontSize: 20 }} />
             </Badge>
           </IconButton>
-          <IconButton size="small" sx={{ color: '#6B7280', '&:hover': { color: '#1A7F37', bgcolor: 'rgba(26,127,55,0.08)' } }}>
-            <SupportIcon sx={{ fontSize: 22 }} />
+
+          {/* Assistant shortcut */}
+          <IconButton size="small" onClick={() => navigate('/voice-chatbot')} sx={{ color: '#6B7280', '&:hover': { color: '#1A7F37', bgcolor: 'rgba(26,127,55,0.08)' } }} title="AI Voice Assistant">
+            <AIIcon sx={{ fontSize: 20 }} />
           </IconButton>
-          <IconButton size="small" onClick={() => navigate('/profile')} sx={{ color: '#6B7280', '&:hover': { color: '#1A7F37', bgcolor: 'rgba(26,127,55,0.08)' } }}>
-            <SettingsIcon sx={{ fontSize: 22 }} />
+
+          {/* Settings */}
+          <IconButton size="small" onClick={() => navigate('/profile')} sx={{ color: '#6B7280', '&:hover': { color: '#1A7F37', bgcolor: 'rgba(26,127,55,0.08)' } }} title="Settings & Logs">
+            <SettingsIcon sx={{ fontSize: 20 }} />
           </IconButton>
 
           <Avatar onClick={() => navigate('/profile')} sx={{
-            width: 36, height: 36, ml: 1,
+            width: 32, height: 32, ml: 0.5,
             background: 'linear-gradient(135deg, #4CAF50, #1A7F37)',
-            fontSize: '0.9rem', color: '#FFFFFF', fontWeight: 700, cursor: 'pointer',
+            fontSize: '0.8rem', color: '#FFFFFF', fontWeight: 700, cursor: 'pointer',
           }}>
             RS
           </Avatar>
@@ -305,12 +317,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           borderTop: '1px solid rgba(0,0,0,0.06)',
           backgroundColor: '#FFFFFF',
           boxShadow: '0 -2px 12px rgba(0,0,0,0.05)',
+          pb: 'max(env(safe-area-inset-bottom, 0px), 4px)',
         }}>
           <BottomNavigation
             value={mobileCurrent === -1 ? false : mobileCurrent}
             onChange={(_e, v) => navigate(mobileNav[v].path)}
             showLabels
-            sx={{ height: 64, backgroundColor: 'transparent' }}
+            sx={{ height: 58, backgroundColor: 'transparent' }}
           >
             {mobileNav.map((item, idx) => {
               const Icon = item.icon;

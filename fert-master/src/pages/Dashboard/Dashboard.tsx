@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box, Typography, CircularProgress, IconButton, Switch, alpha,
+  Button, Menu, MenuItem, Snackbar, Alert as MuiAlert,
 } from '@mui/material';
 import {
   Refresh as RefreshIcon,
@@ -19,12 +20,16 @@ import {
   Memory as MemoryIcon,
   GridOn as GridIcon,
   Mic as MicIcon,
+  FileDownload as DownloadIcon,
+  TableChart as CsvIcon,
+  Print as PrintIcon,
 } from '@mui/icons-material';
 import {
   BarChart, Bar, Cell, ResponsiveContainer, AreaChart, Area, Tooltip,
 } from 'recharts';
 import { fetchDashboardOverview, DashboardOverview } from '../../services/dashboardService';
 import { useLanguage } from '../../context/LanguageContext';
+import { downloadFieldReportCSV, printFieldReportPDF } from '../../services/reportService';
 
 // ── Design Tokens (Light Theme) ───────────────────────────
 const ACCENT   = '#1A7F37';
@@ -114,8 +119,8 @@ const StatPill: React.FC<{
   unit?: string; color: string;
 }> = ({ icon: Icon, label, value, unit, color }) => (
   <Box sx={{
-    display: 'flex', alignItems: 'center', gap: 1.5,
-    px: 2.5, py: 2, borderRadius: '16px',
+    display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 1.5 },
+    px: { xs: 1.5, sm: 2.25 }, py: { xs: 1.25, sm: 2 }, borderRadius: '16px',
     bgcolor: CARD_E, border: `1px solid ${BORDER}`,
     flex: '1 1 0', minWidth: 0,
     transition: 'border-color 0.2s, transform 0.2s',
@@ -123,21 +128,21 @@ const StatPill: React.FC<{
     className: 'nexus-card',
   }}>
     <Box sx={{
-      width: 48, height: 48, borderRadius: '12px', flexShrink: 0,
+      width: { xs: 38, sm: 48 }, height: { xs: 38, sm: 48 }, borderRadius: '12px', flexShrink: 0,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       bgcolor: alpha(color, 0.1), border: `1px solid ${alpha(color, 0.18)}`,
     }}>
-      <Icon sx={{ fontSize: 26, color }} />
+      <Icon sx={{ fontSize: { xs: 20, sm: 26 }, color }} />
     </Box>
     <Box sx={{ minWidth: 0 }}>
-      <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: MUTED, letterSpacing: '0.12em', textTransform: 'uppercase', fontFamily: '"DM Mono", monospace', mb: 0.25 }}>
+      <Typography sx={{ fontSize: { xs: '0.58rem', sm: '0.65rem' }, fontWeight: 700, color: MUTED, letterSpacing: '0.08em', textTransform: 'uppercase', fontFamily: '"DM Mono", monospace', mb: 0.25, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
         {label}
       </Typography>
       <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.3 }}>
-        <Typography sx={{ fontFamily: '"DM Mono", monospace', fontSize: '1.8rem', fontWeight: 700, color, lineHeight: 1.1 }}>
+        <Typography sx={{ fontFamily: '"DM Mono", monospace', fontSize: { xs: '1.35rem', sm: '1.8rem' }, fontWeight: 700, color, lineHeight: 1.1 }}>
           {value}
         </Typography>
-        {unit && <Typography sx={{ fontFamily: '"DM Mono", monospace', fontSize: '0.8rem', color: alpha(color, 0.5) }}>{unit}</Typography>}
+        {unit && <Typography sx={{ fontFamily: '"DM Mono", monospace', fontSize: { xs: '0.7rem', sm: '0.8rem' }, color: alpha(color, 0.5) }}>{unit}</Typography>}
       </Box>
     </Box>
   </Box>
@@ -181,17 +186,17 @@ const NpkDial: React.FC<{ label: string; value: number; max: number; color: stri
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5 }}>
       <Box sx={{
-        width: 64, height: 64, borderRadius: '50%', position: 'relative',
+        width: { xs: 52, sm: 64 }, height: { xs: 52, sm: 64 }, borderRadius: '50%', position: 'relative',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         background: `conic-gradient(${color} 0% ${pct}%, rgba(255,255,255,0.05) ${pct}% 100%)`,
         boxShadow: `0 0 12px ${alpha(color, 0.25)}`,
       }}>
-        <Box sx={{ width: 48, height: 48, borderRadius: '50%', bgcolor: CARD_E, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-          <Typography sx={{ fontSize: '0.7rem', lineHeight: 1 }}>{symbol}</Typography>
-          <Typography sx={{ fontFamily: '"DM Mono", monospace', fontSize: '0.72rem', fontWeight: 700, color, lineHeight: 1.1 }}>{value || '—'}</Typography>
+        <Box sx={{ width: { xs: 38, sm: 48 }, height: { xs: 38, sm: 48 }, borderRadius: '50%', bgcolor: CARD_E, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+          <Typography sx={{ fontSize: { xs: '0.6rem', sm: '0.7rem' }, lineHeight: 1 }}>{symbol}</Typography>
+          <Typography sx={{ fontFamily: '"DM Mono", monospace', fontSize: { xs: '0.64rem', sm: '0.72rem' }, fontWeight: 700, color, lineHeight: 1.1 }}>{value || '—'}</Typography>
         </Box>
       </Box>
-      <Typography sx={{ fontSize: '0.58rem', color: MUTED, fontFamily: '"DM Mono", monospace', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</Typography>
+      <Typography sx={{ fontSize: '0.58rem', color: MUTED, fontFamily: '"DM Mono", monospace', textTransform: 'uppercase', letterSpacing: '0.08em', textAlign: 'center' }}>{label}</Typography>
       <Typography sx={{ fontSize: '0.52rem', color: alpha(color, 0.5), fontFamily: '"DM Mono", monospace' }}>mg/kg</Typography>
     </Box>
   );
@@ -207,6 +212,8 @@ const Dashboard: React.FC = () => {
   const [irrigationOn, setIrrigationOn] = useState(true);
   const [fertOn, setFertOn]             = useState(false);
   const [activeFilter, setActiveFilter] = useState<'all' | 'critical' | 'warning'>('all');
+  const [reportMenuAnchor, setReportMenuAnchor] = useState<null | HTMLElement>(null);
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
   const { t, lang } = useLanguage();
   const userName = useMemo(getUserName, []);
 
@@ -222,6 +229,19 @@ const Dashboard: React.FC = () => {
       setLoading(false);
       setRefreshing(false);
     }
+  };
+
+  const handleDownloadCSV = () => {
+    setReportMenuAnchor(null);
+    if (!overview) return;
+    downloadFieldReportCSV({ overview, userName, lang });
+    setSnackbarOpen(true);
+  };
+
+  const handlePrintPDF = () => {
+    setReportMenuAnchor(null);
+    if (!overview) return;
+    printFieldReportPDF({ overview, userName, lang });
   };
 
   useEffect(() => {
@@ -267,15 +287,15 @@ const Dashboard: React.FC = () => {
     <Box sx={{ width: '100%', pb: 3 }}>
 
       {/* ── PAGE HEADER ── */}
-      <Box sx={{ mb: 3, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 2 }}>
+      <Box sx={{ mb: 3, display: 'flex', alignItems: { xs: 'flex-start', sm: 'center' }, justifyContent: 'space-between', flexDirection: { xs: 'column', sm: 'row' }, gap: 2 }}>
         <Box>
           <Typography sx={{
             fontFamily: '"Inter", sans-serif', fontWeight: 800, letterSpacing: '-0.03em',
-            fontSize: { xs: '1.6rem', md: '2rem' }, color: TEXT, lineHeight: 1.1, mb: 0.4,
+            fontSize: { xs: '1.45rem', sm: '1.75rem', md: '2rem' }, color: TEXT, lineHeight: 1.15, mb: 0.5,
           }}>
             {displayGreeting}, {displayUser}
           </Typography>
-          <Typography sx={{ fontSize: '0.8rem', color: MUTED, fontFamily: '"Inter", sans-serif', maxWidth: 480, lineHeight: 1.65 }}>
+          <Typography sx={{ fontSize: { xs: '0.75rem', sm: '0.8rem' }, color: MUTED, fontFamily: '"Inter", sans-serif', maxWidth: 520, lineHeight: 1.6 }}>
             {loading
               ? t('fetchingLiveData')
               : lang === 'hi'
@@ -284,8 +304,8 @@ const Dashboard: React.FC = () => {
           </Typography>
         </Box>
 
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexShrink: 0 }}>
-          <Box sx={{ display: { xs: 'none', sm: 'block' }, textAlign: 'right' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, alignSelf: { xs: 'stretch', sm: 'auto' }, justifyContent: { xs: 'space-between', sm: 'flex-end' }, flexWrap: 'wrap' }}>
+          <Box sx={{ display: { xs: 'none', md: 'block' }, textAlign: 'right' }}>
             <Typography sx={{ fontSize: '0.65rem', color: MUTED, fontWeight: 600 }}>
               {t('updated')}: {overview?.generatedAt ? new Date(overview.generatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : t('justNow')}
             </Typography>
@@ -293,13 +313,41 @@ const Dashboard: React.FC = () => {
               {t('cycle5Min')}
             </Typography>
           </Box>
+
+          {/* Extract Report Button */}
+          <Button
+            variant="outlined"
+            size="small"
+            onClick={(e) => setReportMenuAnchor(e.currentTarget)}
+            startIcon={<DownloadIcon sx={{ fontSize: 18 }} />}
+            sx={{
+              fontFamily: '"Inter", sans-serif',
+              fontWeight: 600,
+              fontSize: { xs: '0.75rem', sm: '0.8rem' },
+              textTransform: 'none',
+              borderRadius: '10px',
+              px: { xs: 1.5, sm: 2 },
+              py: { xs: 0.6, sm: 0.75 },
+              color: ACCENT,
+              borderColor: alpha(ACCENT, 0.35),
+              bgcolor: alpha(ACCENT, 0.04),
+              '&:hover': {
+                borderColor: ACCENT,
+                bgcolor: alpha(ACCENT, 0.08),
+              },
+            }}
+          >
+            {t('extractReport')}
+          </Button>
+
+          {/* Refresh Button */}
           <IconButton
             size="small"
             disabled={loading || refreshing}
             onClick={() => void load(true)}
-            title="Refresh now (Generates new reading cycle)"
+            title={lang === 'hi' ? 'अभी रीफ़्रेश करें' : 'Refresh now (Generates new reading cycle)'}
             sx={{
-              color: MUTED, border: `1px solid ${BORDER}`, borderRadius: '8px', p: 1,
+              color: MUTED, border: `1px solid ${BORDER}`, borderRadius: '10px', p: { xs: 0.75, sm: 1 },
               '&:hover': { color: ACCENT, borderColor: 'rgba(40,167,69,0.2)', bgcolor: alpha(ACCENT, 0.05) },
             }}
           >
@@ -881,6 +929,62 @@ const Dashboard: React.FC = () => {
           </Box>
         </Box>
       </Box>
+
+      {/* ── REPORT EXTRACTION MENU ── */}
+      <Menu
+        anchorEl={reportMenuAnchor}
+        open={Boolean(reportMenuAnchor)}
+        onClose={() => setReportMenuAnchor(null)}
+        PaperProps={{
+          sx: {
+            borderRadius: '12px',
+            boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
+            border: `1px solid ${BORDER}`,
+            mt: 0.5,
+            minWidth: 200,
+          },
+        }}
+      >
+        <MenuItem onClick={handleDownloadCSV} sx={{ py: 1.25, px: 2, display: 'flex', gap: 1.5 }}>
+          <CsvIcon sx={{ fontSize: 20, color: ACCENT }} />
+          <Box>
+            <Typography sx={{ fontSize: '0.82rem', fontWeight: 600, color: TEXT }}>
+              {t('downloadCsv')}
+            </Typography>
+            <Typography sx={{ fontSize: '0.68rem', color: MUTED }}>
+              Excel / Google Sheets (.csv)
+            </Typography>
+          </Box>
+        </MenuItem>
+        <MenuItem onClick={handlePrintPDF} sx={{ py: 1.25, px: 2, display: 'flex', gap: 1.5 }}>
+          <PrintIcon sx={{ fontSize: 20, color: BLUE }} />
+          <Box>
+            <Typography sx={{ fontSize: '0.82rem', fontWeight: 600, color: TEXT }}>
+              {t('printPdf')}
+            </Typography>
+            <Typography sx={{ fontSize: '0.68rem', color: MUTED }}>
+              Print & Save as PDF
+            </Typography>
+          </Box>
+        </MenuItem>
+      </Menu>
+
+      {/* ── SNACKBAR CONFIRMATION ── */}
+      <Snackbar
+        open={snackbarOpen}
+        autoHideDuration={4000}
+        onClose={() => setSnackbarOpen(false)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <MuiAlert
+          onClose={() => setSnackbarOpen(false)}
+          severity="success"
+          variant="filled"
+          sx={{ width: '100%', borderRadius: '10px', fontWeight: 600, fontSize: '0.85rem' }}
+        >
+          {t('reportDownloaded')}
+        </MuiAlert>
+      </Snackbar>
     </Box>
   );
 };

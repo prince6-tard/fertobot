@@ -41,6 +41,10 @@ export const translations: Translations = {
   updated: { en: 'Updated', hi: 'अपडेटेड' },
   cycle5Min: { en: '5-min cycle', hi: '5 मिनट चक्र' },
   justNow: { en: 'Just now', hi: 'अभी' },
+  extractReport: { en: 'Extract Report', hi: 'रिपोर्ट डाउनलोड करें' },
+  downloadCsv: { en: 'Download CSV (Excel)', hi: 'CSV (एक्सेल) डाउनलोड करें' },
+  printPdf: { en: 'Print / Save PDF', hi: 'प्रिंट / PDF सेव करें' },
+  reportDownloaded: { en: 'Field report extracted successfully', hi: 'खेत की रिपोर्ट सफलतापूर्वक तैयार हो गई' },
 
   // Dashboard Stats
   soilMoisture: { en: 'Soil Moisture', hi: 'मिट्टी की नमी' },
