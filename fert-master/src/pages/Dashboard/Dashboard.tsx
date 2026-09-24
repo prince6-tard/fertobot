@@ -28,8 +28,8 @@ import {
   BarChart, Bar, Cell, ResponsiveContainer, AreaChart, Area, Tooltip,
 } from 'recharts';
 import { fetchDashboardOverview, DashboardOverview } from '../../services/dashboardService';
-import { useLanguage } from '../../context/LanguageContext';
-import { downloadFieldReportCSV, printFieldReportPDF } from '../../services/reportService';
+import { useLanguage, Language } from '../../context/LanguageContext';
+import { downloadFieldReportCSV, printFieldReportPDF, ACTIVE_CROPS } from '../../services/reportService';
 
 // ── Design Tokens (Light Theme) ───────────────────────────
 const ACCENT   = '#1A7F37';
@@ -68,35 +68,80 @@ const computeHealthScore = (o: DashboardOverview): number => {
   return Math.max(0, Math.min(100, s));
 };
 
-const getTimeAgo = (d: Date, lang: 'en' | 'hi' = 'en') => {
+const getTimeAgo = (d: Date, lang: Language = 'en') => {
   const s = Math.floor((Date.now() - d.getTime()) / 1000);
   if (lang === 'hi') {
     if (s < 60) return `${s} सेकंड पहले`;
     if (s < 3600) return `${Math.floor(s / 60)} मिनट पहले`;
     return `${Math.floor(s / 3600)} घंटे पहले`;
   }
+  if (lang === 'gu') {
+    if (s < 60) return `${s} સેકન્ડ પહેલાં`;
+    if (s < 3600) return `${Math.floor(s / 60)} મિનિટ પહેલાં`;
+    return `${Math.floor(s / 3600)} કલાક પહેલાં`;
+  }
+  if (lang === 'mr') {
+    if (s < 60) return `${s} सेकंदांपूर्वी`;
+    if (s < 3600) return `${Math.floor(s / 60)} मिनिटांपूर्वी`;
+    return `${Math.floor(s / 3600)} तासांपूर्वी`;
+  }
   if (s < 60) return `${s}s ago`;
   if (s < 3600) return `${Math.floor(s / 60)}m ago`;
   return `${Math.floor(s / 3600)}h ago`;
 };
 
-const getAlertTitle = (title: string, lang: 'en' | 'hi') => {
-  if (lang !== 'hi') return title;
-  if (!title || title.toLowerCase() === 'alert') return 'अलर्ट';
-  if (title.toLowerCase().includes('motion')) return 'गतिविधि पहचानी गई';
+const getAlertTitle = (title: string, lang: Language) => {
+  if (lang === 'hi') {
+    if (!title || title.toLowerCase() === 'alert') return 'अलर्ट';
+    if (title.toLowerCase().includes('motion')) return 'गतिविधि पहचानी गई';
+    return title;
+  }
+  if (lang === 'gu') {
+    if (!title || title.toLowerCase() === 'alert') return 'એલર્ટ';
+    if (title.toLowerCase().includes('motion')) return 'હલનચલન જણાયું';
+    return title;
+  }
+  if (lang === 'mr') {
+    if (!title || title.toLowerCase() === 'alert') return 'अलर्ट';
+    if (title.toLowerCase().includes('motion')) return 'हालचाल आढळली';
+    return title;
+  }
   return title;
 };
 
-const getAlertMessage = (msg: string, lang: 'en' | 'hi') => {
-  if (lang !== 'hi') return msg;
-  if (msg.includes('Smart irrigation schedule optimized for morning humidity')) {
-    return 'सुबह की नमी के अनुसार स्मार्ट सिंचाई शेड्यूल अनुकूलित किया गया';
+const getAlertMessage = (msg: string, lang: Language) => {
+  if (lang === 'hi') {
+    if (msg.includes('Smart irrigation schedule optimized for morning humidity')) {
+      return 'सुबह की नमी के अनुसार स्मार्ट सिंचाई शेड्यूल अनुकूलित किया गया';
+    }
+    if (msg.includes('Sector B-3 soil moisture is 32% - watering recommended')) {
+      return 'सेक्टर B-3 में मिट्टी की नमी 32% है - हल्की सिंचाई की सिफारिश की जाती है';
+    }
+    if (msg.includes('Automated detection system identified anomaly')) {
+      return 'सिस्टम द्वारा विसंगति पहचानी गई। फ़ील्ड ऑपरेटर को सूचना भेजी गई।';
+    }
   }
-  if (msg.includes('Sector B-3 soil moisture is 32% - watering recommended')) {
-    return 'सेक्टर B-3 में मिट्टी की नमी 32% है - हल्की सिंचाई की सिफारिश की जाती है';
+  if (lang === 'gu') {
+    if (msg.includes('Smart irrigation schedule optimized for morning humidity')) {
+      return 'સવારના ભેજ અનુસાર સ્માર્ટ સિંચાઈ શિડ્યુલ અનુકૂળ કરાયું';
+    }
+    if (msg.includes('Sector B-3 soil moisture is 32% - watering recommended')) {
+      return 'સેક્ટર B-3 માં જમીનનો ભેજ 32% છે - હળવું પિયત આપવાની ભલામણ છે';
+    }
+    if (msg.includes('Automated detection system identified anomaly')) {
+      return 'સિસ્ટમ દ્વારા ક્ષતિ ઓળખાઈ. ખેડૂત ઓપરેટરને જાણ કરવામાં આવી.';
+    }
   }
-  if (msg.includes('Automated detection system identified anomaly')) {
-    return 'सिस्टम द्वारा विसंगति पहचानी गई। फ़ील्ड ऑपरेटर को सूचना भेजी गई।';
+  if (lang === 'mr') {
+    if (msg.includes('Smart irrigation schedule optimized for morning humidity')) {
+      return 'सकाळच्या ओलाव्यानुसार स्मार्ट सिंचन वेळापत्रक अनुकूलित केले';
+    }
+    if (msg.includes('Sector B-3 soil moisture is 32% - watering recommended')) {
+      return 'सेक्टर B-3 मध्ये मातीतील ओलावा 32% आहे - हलके पाणी देण्याची शिफारस आहे';
+    }
+    if (msg.includes('Automated detection system identified anomaly')) {
+      return 'यंत्रणेद्वारे त्रुटी आढळली. ऑपरेटरला सूचना पाठवली.';
+    }
   }
   return msg;
 };
@@ -300,7 +345,11 @@ const Dashboard: React.FC = () => {
               ? t('fetchingLiveData')
               : lang === 'hi'
                 ? `खेत की स्थिति सामान्य · ${totalNodes || 50} में से ${onlineNodes || 44} नोड्स सक्रिय · अगली सिंचाई सुबह 06:00 बजे`
-                : `Field ecosystem nominal · ${onlineNodes || 44} of ${totalNodes || 50} nodes streaming · Next irrigation at 06:00 AM`}
+                : lang === 'gu'
+                  ? `ખેતરની સ્થિતિ સામાન્ય · ${totalNodes || 50} માંથી ${onlineNodes || 44} નોડ્સ સક્રિય · આગામી પિયત સવારે 06:00 વાગ્યે`
+                  : lang === 'mr'
+                    ? `शेताची स्थिती सामान्य · ${totalNodes || 50} पैकी ${onlineNodes || 44} नोड्स सक्रिय · पुढील पाणी सकाळी 06:00 वाजता`
+                    : `Field ecosystem nominal · ${onlineNodes || 44} of ${totalNodes || 50} nodes streaming · Next irrigation at 06:00 AM`}
           </Typography>
         </Box>
 
@@ -345,7 +394,12 @@ const Dashboard: React.FC = () => {
             size="small"
             disabled={loading || refreshing}
             onClick={() => void load(true)}
-            title={lang === 'hi' ? 'अभी रीफ़्रेश करें' : 'Refresh now (Generates new reading cycle)'}
+            title={
+              lang === 'hi' ? 'अभी रीफ़्रेश करें' :
+              lang === 'gu' ? 'હમણાં રિફ્રેશ કરો' :
+              lang === 'mr' ? 'आता रिफ्रेश करा' :
+              'Refresh now (Generates new reading cycle)'
+            }
             sx={{
               color: MUTED, border: `1px solid ${BORDER}`, borderRadius: '10px', p: { xs: 0.75, sm: 1 },
               '&:hover': { color: ACCENT, borderColor: 'rgba(40,167,69,0.2)', bgcolor: alpha(ACCENT, 0.05) },
@@ -636,6 +690,121 @@ const Dashboard: React.FC = () => {
             </Box>
           </Box>
 
+          {/* CROPS IN CULTIVATION & LIVE TELEMETRY ("खेती क्या हुई है और रीडिंग क्या है") */}
+          <Box sx={{ bgcolor: CARD, borderRadius: '16px', border: `1px solid ${BORDER}`, boxShadow: SHADOW, overflow: 'hidden' }}>
+            <Box sx={{ px: 2.5, pt: 2.25, pb: 1.75, borderBottom: `1px solid ${BORDER}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
+              <Box>
+                <Typography sx={{ fontFamily: '"Inter", sans-serif', fontWeight: 700, fontSize: '1rem', color: TEXT, mb: 0.15 }}>
+                  {t('cropsPlanted')}
+                </Typography>
+                <Typography sx={{ fontSize: '0.62rem', color: MUTED, fontFamily: '"DM Mono", monospace' }}>
+                  {lang === 'hi' ? '50 एकड़ में 5 मुख्य फसलें · लाइव सेंसर एवं मृदा स्वास्थ्य' :
+                   lang === 'gu' ? '50 એકરમાં 5 મુખ્ય પાક · લાઇવ સેન્સર અને જમીન સ્વાસ્થ્ય' :
+                   lang === 'mr' ? '50 एकरात 5 मुख्य पिके · थेट सेन्सर्स आणि माती आरोग्य' :
+                   '50 Acres across 5 active crops · Live sensor & soil telemetry'}
+                </Typography>
+              </Box>
+              <Box sx={{ display: 'inline-flex', px: 1.25, py: 0.4, borderRadius: '20px', bgcolor: alpha(ACCENT, 0.1), border: `1px solid ${alpha(ACCENT, 0.25)}` }}>
+                <Typography sx={{ fontSize: '0.6rem', fontWeight: 700, color: ACCENT, fontFamily: '"DM Mono", monospace', letterSpacing: '0.06em' }}>
+                  {lang === 'hi' ? 'खेती विवरण एवं रीडिंग' :
+                   lang === 'gu' ? 'પાક વિગત અને રીડિંગ' :
+                   lang === 'mr' ? 'पीक तपशील व रीडिंग' :
+                   'ACTIVE CROPS & READINGS'}
+                </Typography>
+              </Box>
+            </Box>
+
+            <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+              {ACTIVE_CROPS.map((crop) => {
+                const cropName = crop.name[lang] || crop.name.en;
+                const stage = crop.stage[lang] || crop.stage.en;
+                const status = crop.status[lang] || crop.status.en;
+                const advice = crop.advice[lang] || crop.advice.en;
+                const isAttention = crop.id === 'cotton';
+
+                return (
+                  <Box key={crop.id} sx={{
+                    borderRadius: '12px',
+                    border: `1px solid ${BORDER}`,
+                    bgcolor: CARD_E,
+                    p: 1.75,
+                    transition: 'all 0.2s ease',
+                    '&:hover': {
+                      borderColor: alpha(ACCENT, 0.3),
+                      boxShadow: '0 4px 14px rgba(0,0,0,0.04)',
+                    },
+                  }}>
+                    {/* Header: Emoji, Name, Sector, Status badge */}
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1, mb: 1.25 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
+                        <Typography sx={{ fontSize: '1.4rem', lineHeight: 1 }}>{crop.emoji}</Typography>
+                        <Box>
+                          <Typography sx={{ fontSize: '0.92rem', fontWeight: 700, color: TEXT, fontFamily: '"Inter", sans-serif' }}>
+                            {cropName} <Typography component="span" sx={{ fontSize: '0.74rem', color: MUTED, fontWeight: 500 }}>({crop.variety})</Typography>
+                          </Typography>
+                          <Typography sx={{ fontSize: '0.62rem', color: MUTED, fontFamily: '"DM Mono", monospace' }}>
+                            {crop.sector} · {crop.acreage} {lang === 'hi' ? 'एकड़' : lang === 'gu' ? 'એકર' : lang === 'mr' ? 'एकर' : 'Acres'} · {crop.nodeRange}
+                          </Typography>
+                        </Box>
+                      </Box>
+                      <Box sx={{
+                        px: 1, py: 0.35, borderRadius: '8px',
+                        bgcolor: isAttention ? alpha(AMBER, 0.1) : alpha(ACCENT, 0.1),
+                        border: `1px solid ${isAttention ? alpha(AMBER, 0.3) : alpha(ACCENT, 0.3)}`,
+                      }}>
+                        <Typography sx={{ fontSize: '0.62rem', fontWeight: 700, color: isAttention ? AMBER : ACCENT, fontFamily: '"DM Mono", monospace' }}>
+                          ● {status}
+                        </Typography>
+                      </Box>
+                    </Box>
+
+                    {/* Growth stage & target */}
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.25, px: 1, py: 0.6, bgcolor: '#FFFFFF', borderRadius: '8px', border: `1px solid ${BORDER}` }}>
+                      <Typography sx={{ fontSize: '0.68rem', color: TEXT, fontWeight: 600 }}>
+                        <Typography component="span" sx={{ color: MUTED, fontSize: '0.62rem' }}>{t('cropStage')}: </Typography>
+                        {stage} ({crop.sowingDaysAgo} {lang === 'hi' ? 'दिन पहले बुआई' : lang === 'gu' ? 'દિવસ પહેલાં વાવણી' : lang === 'mr' ? 'दिवसांपूर्वी पेरणी' : 'days ago'})
+                      </Typography>
+                      <Typography sx={{ fontSize: '0.66rem', color: MUTED, fontFamily: '"DM Mono", monospace' }}>
+                        {t('idealMoisture')}: <Typography component="span" sx={{ color: ACCENT, fontWeight: 700 }}>{crop.targetMoisture}</Typography>
+                      </Typography>
+                    </Box>
+
+                    {/* Live Readings Pills ("रीडिंग क्या है") */}
+                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(5, 1fr)' }, gap: 1, mb: 1.25 }}>
+                      <Box sx={{ p: 0.75, borderRadius: '8px', bgcolor: '#fff', border: `1px solid ${BORDER}`, textAlign: 'center' }}>
+                        <Typography sx={{ fontSize: '0.55rem', color: MUTED, textTransform: 'uppercase', fontFamily: '"DM Mono", monospace' }}>{t('soilMoisture')}</Typography>
+                        <Typography sx={{ fontSize: '0.88rem', fontWeight: 700, color: BLUE, fontFamily: '"DM Mono", monospace' }}>{crop.moistureReading}%</Typography>
+                      </Box>
+                      <Box sx={{ p: 0.75, borderRadius: '8px', bgcolor: '#fff', border: `1px solid ${BORDER}`, textAlign: 'center' }}>
+                        <Typography sx={{ fontSize: '0.55rem', color: MUTED, textTransform: 'uppercase', fontFamily: '"DM Mono", monospace' }}>{t('temperature')}</Typography>
+                        <Typography sx={{ fontSize: '0.88rem', fontWeight: 700, color: AMBER, fontFamily: '"DM Mono", monospace' }}>{crop.tempReading}°C</Typography>
+                      </Box>
+                      <Box sx={{ p: 0.75, borderRadius: '8px', bgcolor: '#fff', border: `1px solid ${BORDER}`, textAlign: 'center' }}>
+                        <Typography sx={{ fontSize: '0.55rem', color: MUTED, textTransform: 'uppercase', fontFamily: '"DM Mono", monospace' }}>pH</Typography>
+                        <Typography sx={{ fontSize: '0.88rem', fontWeight: 700, color: TEAL, fontFamily: '"DM Mono", monospace' }}>{crop.phReading}</Typography>
+                      </Box>
+                      <Box sx={{ p: 0.75, borderRadius: '8px', bgcolor: '#fff', border: `1px solid ${BORDER}`, textAlign: 'center' }}>
+                        <Typography sx={{ fontSize: '0.55rem', color: MUTED, textTransform: 'uppercase', fontFamily: '"DM Mono", monospace' }}>N-P-K</Typography>
+                        <Typography sx={{ fontSize: '0.78rem', fontWeight: 700, color: ACCENT, fontFamily: '"DM Mono", monospace' }}>{crop.npk.n}-{crop.npk.p}-{crop.npk.k}</Typography>
+                      </Box>
+                      <Box sx={{ p: 0.75, borderRadius: '8px', bgcolor: '#fff', border: `1px solid ${BORDER}`, textAlign: 'center', gridColumn: { xs: 'span 2', sm: 'span 1' } }}>
+                        <Typography sx={{ fontSize: '0.55rem', color: MUTED, textTransform: 'uppercase', fontFamily: '"DM Mono", monospace' }}>{t('healthIndex')}</Typography>
+                        <Typography sx={{ fontSize: '0.88rem', fontWeight: 700, color: ACCENT, fontFamily: '"DM Mono", monospace' }}>{crop.healthScore}%</Typography>
+                      </Box>
+                    </Box>
+
+                    {/* Agronomic advice badge */}
+                    <Box sx={{ px: 1.25, py: 0.75, borderRadius: '8px', bgcolor: alpha(ACCENT, 0.05), borderLeft: `3px solid ${ACCENT}` }}>
+                      <Typography sx={{ fontSize: '0.7rem', color: TEXT, lineHeight: 1.4, fontFamily: '"Inter", sans-serif' }}>
+                        <strong>💡 {lang === 'hi' ? 'कृषि सलाह' : lang === 'gu' ? 'ખેતી સલાહ' : lang === 'mr' ? 'शेती सल्ला' : 'Advisory'}:</strong> {advice}
+                      </Typography>
+                    </Box>
+                  </Box>
+                );
+              })}
+            </Box>
+          </Box>
+
           {/* SPATIAL MAP */}
           <Box sx={{ bgcolor: CARD, borderRadius: '16px', border: `1px solid ${BORDER}`, boxShadow: SHADOW, overflow: 'hidden' }}>
             <Box sx={{ px: 2.5, pt: 2, pb: 1.75, borderBottom: `1px solid ${BORDER}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -888,7 +1057,10 @@ const Dashboard: React.FC = () => {
               {/* Label */}
               <Box sx={{ position: 'absolute', bottom: 10, left: 12, px: 1, py: 0.4, borderRadius: '5px', bgcolor: 'rgba(0,0,0,0.65)', border: `1px solid ${alpha(ACCENT, 0.2)}` }}>
                 <Typography sx={{ fontSize: '0.5rem', color: ACCENT, fontFamily: '"DM Mono", monospace', letterSpacing: '0.08em' }}>
-                  {lang === 'hi' ? 'सेक्टर A-12 कैमरा' : 'Sector A-12 Cam'}
+                  {lang === 'hi' ? 'सेक्टर A-12 कैमरा' :
+                   lang === 'gu' ? 'સેક્ટર A-12 કેમેરા' :
+                   lang === 'mr' ? 'सेक्टर A-12 कॅमेरा' :
+                   'Sector A-12 Cam'}
                 </Typography>
               </Box>
             </Box>

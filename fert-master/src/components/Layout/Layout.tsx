@@ -2,7 +2,7 @@ import React from 'react';
 import {
   Box, Typography, Badge, Avatar, IconButton,
   BottomNavigation, BottomNavigationAction,
-  useMediaQuery, useTheme,
+  useMediaQuery, useTheme, Button, Menu, MenuItem,
 } from '@mui/material';
 import {
   Dashboard as OverviewIcon,
@@ -17,9 +17,10 @@ import {
   Logout as LogoutIcon,
   Add as AddIcon,
   Language as LanguageIcon,
+  Check as CheckIcon,
 } from '@mui/icons-material';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useLanguage } from '../../context/LanguageContext';
+import { useLanguage, SUPPORTED_LANGUAGES } from '../../context/LanguageContext';
 
 // ── Design Tokens (Light Theme) ───────────────────────────
 const SB_BG      = '#FFFFFF';
@@ -73,10 +74,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const currentPath   = location.pathname;
   const mobileCurrent = mobileNav.findIndex(item => item.path === currentPath);
   const { lang, setLang, t } = useLanguage();
-
-  const toggleLang = () => {
-    setLang(lang === 'en' ? 'hi' : 'en');
-  };
+  const [langMenuAnchor, setLangMenuAnchor] = React.useState<null | HTMLElement>(null);
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: CONTENT }}>
@@ -267,11 +265,75 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             </Typography>
           </Box>
 
-          {/* Language toggle */}
-          <IconButton size="small" onClick={toggleLang} sx={{ color: '#6B7280', border: '1px solid rgba(0,0,0,0.08)', borderRadius: '8px', px: 1, py: 0.5, '&:hover': { color: '#1A7F37', borderColor: 'rgba(26,127,55,0.3)', bgcolor: 'rgba(26,127,55,0.06)' } }} title="Toggle Language (English/Hindi)">
-            <LanguageIcon sx={{ fontSize: 18 }} />
-            <Typography sx={{ fontSize: '0.68rem', ml: 0.5, fontWeight: 700 }}>{lang.toUpperCase()}</Typography>
-          </IconButton>
+          {/* Language Selector Menu */}
+          <Button
+            size="small"
+            onClick={(e) => setLangMenuAnchor(e.currentTarget)}
+            startIcon={<LanguageIcon sx={{ fontSize: 17, color: '#1A7F37' }} />}
+            sx={{
+              color: '#374151',
+              border: '1px solid rgba(0,0,0,0.12)',
+              borderRadius: '8px',
+              px: { xs: 0.8, sm: 1.25 },
+              py: 0.4,
+              fontSize: '0.74rem',
+              fontWeight: 700,
+              textTransform: 'none',
+              fontFamily: '"DM Mono", monospace',
+              bgcolor: 'rgba(0,0,0,0.02)',
+              '&:hover': {
+                color: '#1A7F37',
+                borderColor: 'rgba(26,127,55,0.3)',
+                bgcolor: 'rgba(26,127,55,0.06)',
+              },
+            }}
+          >
+            {SUPPORTED_LANGUAGES.find(l => l.code === lang)?.flag} {SUPPORTED_LANGUAGES.find(l => l.code === lang)?.nativeLabel || lang.toUpperCase()}
+          </Button>
+
+          <Menu
+            anchorEl={langMenuAnchor}
+            open={Boolean(langMenuAnchor)}
+            onClose={() => setLangMenuAnchor(null)}
+            PaperProps={{
+              sx: {
+                borderRadius: '12px',
+                boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                border: '1px solid rgba(0,0,0,0.08)',
+                minWidth: 170,
+                py: 0.5,
+              },
+            }}
+          >
+            {SUPPORTED_LANGUAGES.map((l) => (
+              <MenuItem
+                key={l.code}
+                onClick={() => {
+                  setLang(l.code);
+                  setLangMenuAnchor(null);
+                }}
+                selected={lang === l.code}
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1.25,
+                  py: 1,
+                  px: 2,
+                }}
+              >
+                <Typography sx={{ fontSize: '1.1rem' }}>{l.flag}</Typography>
+                <Box sx={{ flex: 1 }}>
+                  <Typography sx={{ fontSize: '0.82rem', fontWeight: lang === l.code ? 700 : 500, color: '#111827' }}>
+                    {l.nativeLabel}
+                  </Typography>
+                  <Typography sx={{ fontSize: '0.66rem', color: '#6B7280' }}>
+                    {l.label}
+                  </Typography>
+                </Box>
+                {lang === l.code && <CheckIcon sx={{ fontSize: 16, color: '#1A7F37' }} />}
+              </MenuItem>
+            ))}
+          </Menu>
 
           {/* Alerts shortcut */}
           <IconButton size="small" onClick={() => navigate('/security')} sx={{ color: '#6B7280', '&:hover': { color: '#1A7F37', bgcolor: 'rgba(26,127,55,0.08)' } }} title="Security & Alerts">
