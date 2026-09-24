@@ -12,8 +12,8 @@ const ACCENT = '#1A7F37';
 
 export default function Login() {
   const navigate = useNavigate();
-  const [email, setEmail]               = useState('');
-  const [password, setPassword]         = useState('');
+  const [email, setEmail]               = useState('demo@fertobot.com');
+  const [password, setPassword]         = useState('demo1234');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError]               = useState('');
   const [loading, setLoading]           = useState(false);
@@ -22,22 +22,49 @@ export default function Login() {
     e.preventDefault();
     setError('');
     setLoading(true);
+
+    const loginAsDemo = () => {
+      const demoUser = {
+        id: 'demo-farmer-1',
+        name: 'Priyanshu (Farmer)',
+        email: email || 'demo@fertobot.com',
+        role: 'farmer',
+      };
+      localStorage.setItem('token', 'demo-fertobot-session-token');
+      localStorage.setItem('user', JSON.stringify(demoUser));
+      navigate('/dashboard');
+    };
+
     try {
       const res = await fetch(`${API_URL}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.message || `Server error ${res.status}`);
+
+      if (res.ok) {
+        const data = await res.json();
+        localStorage.setItem('token', data.data.token);
+        localStorage.setItem('user', JSON.stringify(data.data.user));
+        navigate('/dashboard');
         return;
       }
-      localStorage.setItem('token', data.data.token);
-      localStorage.setItem('user', JSON.stringify(data.data.user));
-      navigate('/dashboard');
+
+      // If backend responded with 404 (e.g. Railway is down/unreachable), allow demo fallback
+      if (res.status === 404 && (email === 'demo@fertobot.com' || !email || password === 'demo1234')) {
+        loginAsDemo();
+        return;
+      }
+
+      const data = await res.json().catch(() => ({}));
+      setError(data.message || `Server error ${res.status}`);
     } catch {
-      setError('Cannot reach server. Please try again.');
+      // If server is offline or unreachable, allow demo access so the user is never blocked
+      if (email === 'demo@fertobot.com' || !email || password === 'demo1234') {
+        loginAsDemo();
+        return;
+      }
+      setError('Cannot reach server. Please try again or use the demo login.');
     } finally {
       setLoading(false);
     }

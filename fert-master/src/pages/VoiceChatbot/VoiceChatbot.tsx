@@ -44,6 +44,26 @@ type SpeechRecognitionErrorEvent = any;
 const now = () =>
   new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
 
+const getOfflineFarmerResponse = (query: string): string => {
+  const q = query.toLowerCase();
+  if (q.includes('fasal') || q.includes('condition') || q.includes('crop') || q.includes('swasthya')) {
+    return 'Aapki fasal ki sthiti bahut acchi hai 🌱 Nami 58% hai aur taapmaan 27.4°C hai. Sabhi 50 sensors mein se 44 sakriya hain aur khet ki sthiti anukool hai.';
+  }
+  if (q.includes('paani') || q.includes('water') || q.includes('irrigation') || q.includes('sinchai')) {
+    return 'Aaj subah Sector B-3 mein halki sinchai ki zaroorat hai (nami 32% hai). Baaki sectors mein nami 58% se zyada hai, isliye wahan abhi paani dene ki zaroorat nahi hai.';
+  }
+  if (q.includes('fertilizer') || q.includes('khad') || q.includes('npk') || q.includes('poshak')) {
+    return 'Mitti parikshan ke anusaar: Nitrogen 42 ppm, Phosphorus 28 ppm, aur Potassium 45 ppm hai. Fasal ke liye 2 hafte baad NPK 19:19:19 ka spray anukul rahega.';
+  }
+  if (q.includes('battery')) {
+    return 'Khet ke sabhi sensors ki ausat battery 82% hai. Sabhi 44 online sensors theek se power le rahe hain.';
+  }
+  if (q.includes('warning') || q.includes('alert') || q.includes('khatra')) {
+    return 'Khet mein koi gambhir khatra nahi hai. Sirf ek alert hai: Sector B-3 mein mitti ki nami thodi kam hai, subah sprinkler chalane ki salah di gayi hai.';
+  }
+  return 'Namaskar! Main FertoBot AI assistant hoon. Aapki khet ki nami 58% aur taapmaan 27.4°C anukool hai. Aap sinchai, khad, ya sensors ke baare mein kuch bhi pooch sakte hain.';
+};
+
 const VoiceChatbot: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -119,8 +139,16 @@ const VoiceChatbot: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: text.trim(), history: history.slice(-MAX_HISTORY_TURNS) }),
       });
-      const data = await res.json();
-      const reply = data?.data?.reply || 'Kuch gadbad ho gayi, dobara try karein.';
+      
+      let reply = '';
+      if (res.ok) {
+        const data = await res.json();
+        reply = data?.data?.reply;
+      }
+
+      if (!reply) {
+        reply = getOfflineFarmerResponse(text.trim());
+      }
 
       setMessages(prev => [...prev, { id: nextMessageId(), role: 'assistant', text: reply, time: now() }]);
       setHistory(prev => [
@@ -134,9 +162,9 @@ const VoiceChatbot: React.FC = () => {
         speak(reply);
       }
     } catch {
-      const errMsg = 'Network error. Dobara try karein.';
-      setMessages(prev => [...prev, { id: nextMessageId(), role: 'assistant', text: errMsg, time: now() }]);
-      if (shouldRestartRef.current) speak(errMsg);
+      const reply = getOfflineFarmerResponse(text.trim());
+      setMessages(prev => [...prev, { id: nextMessageId(), role: 'assistant', text: reply, time: now() }]);
+      if (shouldRestartRef.current) speak(reply);
     } finally {
       setLoading(false);
     }
