@@ -23,11 +23,14 @@ import {
   FileDownload as DownloadIcon,
   TableChart as CsvIcon,
   Print as PrintIcon,
+  WifiOff as WifiOffIcon,
+  BugReport as BugReportIcon,
+  Grass as GrassIcon,
 } from '@mui/icons-material';
 import {
   BarChart, Bar, Cell, ResponsiveContainer, AreaChart, Area, Tooltip,
 } from 'recharts';
-import { fetchDashboardOverview, DashboardOverview } from '../../services/dashboardService';
+import { fetchDashboardOverview, DashboardOverview, getOfflineEntriesHistory } from '../../services/dashboardService';
 import { useLanguage, Language } from '../../context/LanguageContext';
 import { downloadFieldReportCSV, printFieldReportPDF, ACTIVE_CROPS } from '../../services/reportService';
 
@@ -259,6 +262,7 @@ const Dashboard: React.FC = () => {
   const [activeFilter, setActiveFilter] = useState<'all' | 'critical' | 'warning'>('all');
   const [reportMenuAnchor, setReportMenuAnchor] = useState<null | HTMLElement>(null);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [isOnline, setIsOnline]         = useState<boolean>(typeof navigator !== 'undefined' ? navigator.onLine : true);
   const { t, lang } = useLanguage();
   const userName = useMemo(getUserName, []);
 
@@ -268,7 +272,11 @@ const Dashboard: React.FC = () => {
     if (forceRefresh) setRefreshing(true);
     else setLoading(true);
     try {
-      setOverview(await fetchDashboardOverview(forceRefresh));
+      const data = await fetchDashboardOverview(forceRefresh);
+      setOverview(data);
+      if (typeof navigator !== 'undefined' && navigator.onLine && !data.isOffline) {
+        setIsOnline(true);
+      }
     } catch { /* silent */ }
     finally {
       setLoading(false);
@@ -290,11 +298,28 @@ const Dashboard: React.FC = () => {
   };
 
   useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      void load(true);
+    };
+    const handleOffline = () => {
+      setIsOnline(false);
+    };
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
     void load(false);
     // Poll every 30s to check for 5-min window expiration
     const interval = setInterval(() => void load(false), 30000);
-    return () => clearInterval(interval);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      clearInterval(interval);
+    };
   }, []);
+
+  const isOfflineMode = !isOnline || Boolean(overview?.isOffline);
 
   const latest       = overview?.recentReadings[0] ?? null;
   const healthScore  = overview ? computeHealthScore(overview) : 98;
@@ -309,11 +334,16 @@ const Dashboard: React.FC = () => {
       (activeFilter === 'critical' && a.severity === 'error'));
   }, [recentAlerts, activeFilter]);
 
-  // Sparkline data
+  // Sparkline data with offline history support
   const sparkData = useMemo(() => {
-    const rr = [...(overview?.recentReadings ?? [])].reverse().slice(-12);
-    if (rr.length === 0) return [45, 62, 78, 55, 80, 70, 65, 88, 72, 95, 85, 90].map((v, i) => ({ v, i }));
-    return rr.map((r, i) => ({ v: Math.round(r.soilMoisture), i }));
+    let rr = [...(overview?.recentReadings ?? [])];
+    if (rr.length <= 1) {
+      const history = getOfflineEntriesHistory();
+      if (history.length > 0) rr = history;
+    }
+    const sliced = rr.reverse().slice(-12);
+    if (sliced.length === 0) return [45, 62, 78, 55, 80, 70, 65, 88, 72, 95, 85, 90].map((v, i) => ({ v, i }));
+    return sliced.map((r, i) => ({ v: Math.round(r.soilMoisture), i }));
   }, [overview]);
 
   const npk = {
@@ -332,24 +362,46 @@ const Dashboard: React.FC = () => {
     <Box sx={{ width: '100%', pb: 3 }}>
 
       {/* ── PAGE HEADER ── */}
-      <Box sx={{ mb: 3, display: 'flex', alignItems: { xs: 'flex-start', sm: 'center' }, justifyContent: 'space-between', flexDirection: { xs: 'column', sm: 'row' }, gap: 2 }}>
+      <Box sx={{ mb: 2.5, display: 'flex', alignItems: { xs: 'flex-start', sm: 'center' }, justifyContent: 'space-between', flexDirection: { xs: 'column', sm: 'row' }, gap: 2 }}>
         <Box>
-          <Typography sx={{
-            fontFamily: '"Inter", sans-serif', fontWeight: 800, letterSpacing: '-0.03em',
-            fontSize: { xs: '1.45rem', sm: '1.75rem', md: '2rem' }, color: TEXT, lineHeight: 1.15, mb: 0.5,
-          }}>
-            {displayGreeting}, {displayUser}
-          </Typography>
-          <Typography sx={{ fontSize: { xs: '0.75rem', sm: '0.8rem' }, color: MUTED, fontFamily: '"Inter", sans-serif', maxWidth: 520, lineHeight: 1.6 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, flexWrap: 'wrap' }}>
+            <Typography sx={{
+              fontFamily: '"Inter", sans-serif', fontWeight: 800, letterSpacing: '-0.03em',
+              fontSize: { xs: '1.45rem', sm: '1.75rem', md: '2rem' }, color: TEXT, lineHeight: 1.15,
+            }}>
+              {displayGreeting}, {displayUser}
+            </Typography>
+            {isOfflineMode && (
+              <Box sx={{
+                display: 'inline-flex', alignItems: 'center', gap: 0.6,
+                px: 1.25, py: 0.4, borderRadius: '20px',
+                bgcolor: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.28)',
+              }}>
+                <WifiOffIcon sx={{ fontSize: 13, color: RED }} />
+                <Typography sx={{ fontSize: '0.62rem', fontWeight: 700, color: RED, fontFamily: '"DM Mono", monospace', letterSpacing: '0.06em' }}>
+                  {t('offlineMode')}
+                </Typography>
+              </Box>
+            )}
+          </Box>
+          <Typography sx={{ fontSize: { xs: '0.75rem', sm: '0.8rem' }, color: MUTED, fontFamily: '"Inter", sans-serif', maxWidth: 540, lineHeight: 1.6, mt: 0.5 }}>
             {loading
               ? t('fetchingLiveData')
-              : lang === 'hi'
-                ? `खेत की स्थिति सामान्य · ${totalNodes || 50} में से ${onlineNodes || 44} नोड्स सक्रिय · अगली सिंचाई सुबह 06:00 बजे`
-                : lang === 'gu'
-                  ? `ખેતરની સ્થિતિ સામાન્ય · ${totalNodes || 50} માંથી ${onlineNodes || 44} નોડ્સ સક્રિય · આગામી પિયત સવારે 06:00 વાગ્યે`
-                  : lang === 'mr'
-                    ? `शेताची स्थिती सामान्य · ${totalNodes || 50} पैकी ${onlineNodes || 44} नोड्स सक्रिय · पुढील पाणी सकाळी 06:00 वाजता`
-                    : `Field ecosystem nominal · ${onlineNodes || 44} of ${totalNodes || 50} nodes streaming · Next irrigation at 06:00 AM`}
+              : isOfflineMode
+                ? (lang === 'hi'
+                    ? `ऑफ़लाइन मोड सक्रिय · पूर्व सहेजा गया डेटा प्रदर्शित है (${overview?.summary?.totalProbes || 50} नोड्स)`
+                    : lang === 'gu'
+                      ? `ઑફલાઇન મોડ સક્રિય · અગાઉ સંગ્રહિત ડેટા પ્રદર્શિત છે (${overview?.summary?.totalProbes || 50} નોડ્સ)`
+                      : lang === 'mr'
+                        ? `ऑफलाइन मोड सक्रिय · पूर्वी जतन केलेला डेटा दाखवला जात आहे (${overview?.summary?.totalProbes || 50} नोड्स)`
+                        : `Offline Mode Active · Viewing cached farm telemetry (${overview?.summary?.totalProbes || 50} nodes)`)
+                : (lang === 'hi'
+                    ? `खेत की स्थिति सामान्य · ${totalNodes || 50} में से ${onlineNodes || 44} नोड्स सक्रिय · अगली सिंचाई सुबह 06:00 बजे`
+                    : lang === 'gu'
+                      ? `ખેતરની સ્થિતિ સામાન્ય · ${totalNodes || 50} માંથી ${onlineNodes || 44} નોડ્સ સક્રિય · આગામી પિયત સવારે 06:00 વાગ્યે`
+                      : lang === 'mr'
+                        ? `शेताची स्थिती सामान्य · ${totalNodes || 50} पैकी ${onlineNodes || 44} नोड्स सक्रिय · पुढील पाणी सकाळी 06:00 वाजता`
+                        : `Field ecosystem nominal · ${onlineNodes || 44} of ${totalNodes || 50} nodes streaming · Next irrigation at 06:00 AM`)}
           </Typography>
         </Box>
 
@@ -358,8 +410,8 @@ const Dashboard: React.FC = () => {
             <Typography sx={{ fontSize: '0.65rem', color: MUTED, fontWeight: 600 }}>
               {t('updated')}: {overview?.generatedAt ? new Date(overview.generatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : t('justNow')}
             </Typography>
-            <Typography sx={{ fontSize: '0.6rem', color: alpha(ACCENT, 0.8), fontWeight: 500 }}>
-              {t('cycle5Min')}
+            <Typography sx={{ fontSize: '0.6rem', color: isOfflineMode ? RED : alpha(ACCENT, 0.8), fontWeight: 500 }}>
+              {isOfflineMode ? (lang === 'hi' ? 'सहेजा गया डेटा' : lang === 'gu' ? 'સંગ્રહિત ડેટા' : lang === 'mr' ? 'जतन केलेला डेटा' : 'Cached Snapshot') : t('cycle5Min')}
             </Typography>
           </Box>
 
@@ -417,6 +469,77 @@ const Dashboard: React.FC = () => {
           </IconButton>
         </Box>
       </Box>
+
+      {/* ── OFFLINE MODE PERSISTENCE BANNER ── */}
+      {isOfflineMode && (
+        <Box sx={{
+          mb: 2.5,
+          p: { xs: 1.5, sm: 2 },
+          borderRadius: '14px',
+          bgcolor: 'rgba(239, 68, 68, 0.05)',
+          border: '1px solid rgba(239, 68, 68, 0.22)',
+          display: 'flex',
+          alignItems: { xs: 'flex-start', sm: 'center' },
+          justifyContent: 'space-between',
+          flexDirection: { xs: 'column', sm: 'row' },
+          gap: 1.5,
+        }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Box sx={{
+              width: 38, height: 38, borderRadius: '10px',
+              bgcolor: 'rgba(239, 68, 68, 0.1)',
+              border: '1px solid rgba(239, 68, 68, 0.2)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0,
+            }}>
+              <WifiOffIcon sx={{ fontSize: 19, color: RED }} />
+            </Box>
+            <Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                <Typography sx={{ fontFamily: '"Inter", sans-serif', fontWeight: 700, fontSize: '0.86rem', color: TEXT }}>
+                  {t('offlineBannerTitle')}
+                </Typography>
+                <Box sx={{ px: 0.85, py: 0.2, borderRadius: '6px', bgcolor: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.25)' }}>
+                  <Typography sx={{ fontSize: '0.58rem', fontWeight: 700, color: RED, fontFamily: '"DM Mono", monospace' }}>
+                    {t('cachedAtLabel')}: {overview?.cachedAt ? new Date(overview.cachedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : t('justNow')}
+                  </Typography>
+                </Box>
+              </Box>
+              <Typography sx={{ fontSize: '0.72rem', color: MUTED, fontFamily: '"Inter", sans-serif', mt: 0.25, lineHeight: 1.4 }}>
+                {t('offlineBannerDesc')}
+              </Typography>
+            </Box>
+          </Box>
+
+          <Button
+            size="small"
+            variant="outlined"
+            onClick={() => void load(true)}
+            disabled={refreshing}
+            startIcon={<RefreshIcon sx={{ fontSize: 15 }} />}
+            sx={{
+              fontFamily: '"Inter", sans-serif',
+              fontWeight: 600,
+              fontSize: '0.74rem',
+              textTransform: 'none',
+              borderRadius: '9px',
+              color: RED,
+              borderColor: 'rgba(239, 68, 68, 0.35)',
+              bgcolor: 'rgba(239, 68, 68, 0.04)',
+              px: 1.5,
+              py: 0.5,
+              whiteSpace: 'nowrap',
+              alignSelf: { xs: 'stretch', sm: 'auto' },
+              '&:hover': {
+                borderColor: RED,
+                bgcolor: 'rgba(239, 68, 68, 0.09)',
+              },
+            }}
+          >
+            {t('checkConnection')}
+          </Button>
+        </Box>
+      )}
 
       {/* ── MAIN 2-COLUMN LAYOUT ── */}
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1fr 320px' }, gap: 2, alignItems: 'start' }}>
@@ -912,110 +1035,129 @@ const Dashboard: React.FC = () => {
 
           {/* FERTILIZER RECOMMENDATIONS */}
           <Box sx={{ bgcolor: CARD, borderRadius: '16px', border: `1px solid ${BORDER}`, boxShadow: SHADOW, overflow: 'hidden' }}>
-            <Box sx={{ px: 2.25, pt: 2, pb: 1.75, borderBottom: `1px solid ${BORDER}`, display: 'flex', alignItems: 'center', gap: 1.25 }}>
-              <Typography sx={{ fontSize: '1.3rem' }}>🌾</Typography>
-              <Box>
-                <Typography sx={{ fontFamily: '"Inter", sans-serif', fontWeight: 800, fontSize: '0.95rem', color: TEXT, mb: 0.15 }}>{t('khaadAdvice')}</Typography>
-                <Typography sx={{ fontSize: '0.7rem', color: MUTED, fontWeight: 500 }}>{t('soilBased')}</Typography>
+            <Box sx={{ px: 2.25, pt: 2, pb: 1.75, borderBottom: `1px solid ${BORDER}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
+                <Typography sx={{ fontSize: '1.3rem' }}>🌾</Typography>
+                <Box>
+                  <Typography sx={{ fontFamily: '"Inter", sans-serif', fontWeight: 800, fontSize: '0.95rem', color: TEXT, mb: 0.15 }}>
+                    {t('actionableFertilizerPlan')}
+                  </Typography>
+                  <Typography sx={{ fontSize: '0.68rem', color: MUTED, fontWeight: 500 }}>
+                    {t('soilBased')} · {latest ? `N:${Math.round(latest.nitrogen)} P:${Math.round(latest.phosphorus)} K:${Math.round(latest.potassium)}` : 'Live Telemetry'}
+                  </Typography>
+                </Box>
               </Box>
             </Box>
-            <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
-              {(!latest || (latest.nitrogen >= 40 && latest.phosphorus >= 30 && latest.potassium >= 30 && healthScore > 80)) ? (
-                <Box sx={{ display: 'flex', gap: 1.5 }}>
-                  <Box sx={{ width: 36, height: 36, borderRadius: '10px', bgcolor: alpha(ACCENT, 0.1), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <Typography sx={{ fontSize: '1.1rem' }}>✅</Typography>
-                  </Box>
-                  <Box>
-                    <Typography sx={{ fontSize: '0.88rem', fontWeight: 700, color: TEXT }}>{t('cropHealthy')}</Typography>
-                    <Typography sx={{ fontSize: '0.75rem', color: MUTED, mt: 0.25, lineHeight: 1.4 }}>{t('cropHealthySub')}</Typography>
+
+            <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+              {/* Card 1: Wheat Top-Dressing Plan */}
+              <Box sx={{ p: 1.5, borderRadius: '12px', bgcolor: alpha(ACCENT, 0.05), border: `1px solid ${alpha(ACCENT, 0.18)}` }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.75 }}>
+                  <Typography sx={{ fontSize: '0.8rem', fontWeight: 700, color: TEXT, display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                    <span>🌾</span> {ACTIVE_CROPS[0].name[lang] || ACTIVE_CROPS[0].name.en} ({ACTIVE_CROPS[0].variety})
+                  </Typography>
+                  <Box sx={{ px: 0.8, py: 0.2, borderRadius: '6px', bgcolor: alpha(ACCENT, 0.12), border: `1px solid ${alpha(ACCENT, 0.25)}` }}>
+                    <Typography sx={{ fontSize: '0.55rem', fontWeight: 700, color: ACCENT, fontFamily: '"DM Mono", monospace' }}>
+                      {t('broadcastBeforeWater')}
+                    </Typography>
                   </Box>
                 </Box>
-              ) : (
-                <>
-                  {latest.nitrogen < 40 && (
-                    <Box sx={{ display: 'flex', gap: 1.5 }}>
-                      <Box sx={{ width: 36, height: 36, borderRadius: '10px', bgcolor: alpha(ACCENT, 0.1), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <Typography sx={{ fontSize: '1.1rem' }}>⚪</Typography>
-                      </Box>
-                      <Box>
-                        <Typography sx={{ fontSize: '0.88rem', fontWeight: 700, color: TEXT }}>{t('urea')}</Typography>
-                        <Typography sx={{ fontSize: '0.75rem', color: MUTED, mt: 0.25, lineHeight: 1.4 }}>{t('ureaLowN')}</Typography>
-                      </Box>
-                    </Box>
-                  )}
-                  {(latest.phosphorus < 30 || latest.potassium < 30) && (
-                    <Box sx={{ display: 'flex', gap: 1.5 }}>
-                      <Box sx={{ width: 36, height: 36, borderRadius: '10px', bgcolor: alpha(TEAL, 0.1), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <Typography sx={{ fontSize: '1.1rem' }}>🧪</Typography>
-                      </Box>
-                      <Box>
-                        <Typography sx={{ fontSize: '0.88rem', fontWeight: 700, color: TEXT }}>{t('npk')}</Typography>
-                        <Typography sx={{ fontSize: '0.75rem', color: MUTED, mt: 0.25, lineHeight: 1.4 }}>{t('npkLowP')}</Typography>
-                      </Box>
-                    </Box>
-                  )}
-                  {healthScore < 80 && (
-                    <Box sx={{ display: 'flex', gap: 1.5 }}>
-                      <Box sx={{ width: 36, height: 36, borderRadius: '10px', bgcolor: alpha(AMBER, 0.1), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <Typography sx={{ fontSize: '1.1rem' }}>🍂</Typography>
-                      </Box>
-                      <Box>
-                        <Typography sx={{ fontSize: '0.88rem', fontWeight: 700, color: TEXT }}>{t('compost')}</Typography>
-                        <Typography sx={{ fontSize: '0.75rem', color: MUTED, mt: 0.25, lineHeight: 1.4 }}>{t('compostAdvice')}</Typography>
-                      </Box>
-                    </Box>
-                  )}
-                </>
+                <Typography sx={{ fontSize: '0.72rem', color: TEXT, lineHeight: 1.45, fontWeight: 500 }}>
+                  {ACTIVE_CROPS[0].advice[lang] || ACTIVE_CROPS[0].advice.en}
+                </Typography>
+              </Box>
+
+              {/* Card 2: Cotton Drip & Foliar Plan */}
+              <Box sx={{ p: 1.5, borderRadius: '12px', bgcolor: alpha(BLUE, 0.05), border: `1px solid ${alpha(BLUE, 0.18)}` }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.75 }}>
+                  <Typography sx={{ fontSize: '0.8rem', fontWeight: 700, color: TEXT, display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                    <span>🌱</span> {ACTIVE_CROPS[1].name[lang] || ACTIVE_CROPS[1].name.en} ({ACTIVE_CROPS[1].variety})
+                  </Typography>
+                  <Box sx={{ px: 0.8, py: 0.2, borderRadius: '6px', bgcolor: alpha(BLUE, 0.12), border: `1px solid ${alpha(BLUE, 0.25)}` }}>
+                    <Typography sx={{ fontSize: '0.55rem', fontWeight: 700, color: BLUE, fontFamily: '"DM Mono", monospace' }}>
+                      {t('dripFertigation')}
+                    </Typography>
+                  </Box>
+                </Box>
+                <Typography sx={{ fontSize: '0.72rem', color: TEXT, lineHeight: 1.45, fontWeight: 500 }}>
+                  {ACTIVE_CROPS[1].advice[lang] || ACTIVE_CROPS[1].advice.en}
+                </Typography>
+              </Box>
+
+              {/* Soil Telemetry Specific Action if low nutrients */}
+              {latest && (latest.nitrogen < 40 || latest.phosphorus < 30 || latest.potassium < 30) && (
+                <Box sx={{ p: 1.25, borderRadius: '10px', bgcolor: alpha(AMBER, 0.08), border: `1px solid ${alpha(AMBER, 0.25)}`, display: 'flex', gap: 1 }}>
+                  <Typography sx={{ fontSize: '1rem' }}>⚡</Typography>
+                  <Box>
+                    <Typography sx={{ fontSize: '0.74rem', fontWeight: 700, color: TEXT }}>
+                      {latest.nitrogen < 40 ? t('urea') : t('npk')}
+                    </Typography>
+                    <Typography sx={{ fontSize: '0.68rem', color: MUTED, mt: 0.2, lineHeight: 1.4 }}>
+                      {latest.nitrogen < 40 ? t('ureaLowN') : t('npkLowP')}
+                    </Typography>
+                  </Box>
+                </Box>
               )}
             </Box>
           </Box>
 
-          {/* CROP PROTECTION */}
+          {/* CROP PROTECTION & PEST SCHEDULE */}
           <Box sx={{ bgcolor: CARD, borderRadius: '16px', border: `1px solid ${BORDER}`, boxShadow: SHADOW, overflow: 'hidden' }}>
-            <Box sx={{ px: 2.25, pt: 2, pb: 1.75, borderBottom: `1px solid ${BORDER}`, display: 'flex', alignItems: 'center', gap: 1.25 }}>
-              <Typography sx={{ fontSize: '1.3rem' }}>🛡️</Typography>
-              <Box>
-                <Typography sx={{ fontFamily: '"Inter", sans-serif', fontWeight: 800, fontSize: '0.95rem', color: TEXT, mb: 0.15 }}>{t('pestControl')}</Typography>
-                <Typography sx={{ fontSize: '0.7rem', color: MUTED, fontWeight: 500 }}>{t('protectCrop')}</Typography>
+            <Box sx={{ px: 2.25, pt: 2, pb: 1.75, borderBottom: `1px solid ${BORDER}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
+                <Typography sx={{ fontSize: '1.3rem' }}>🛡️</Typography>
+                <Box>
+                  <Typography sx={{ fontFamily: '"Inter", sans-serif', fontWeight: 800, fontSize: '0.95rem', color: TEXT, mb: 0.15 }}>
+                    {t('pestAndSprayingSchedule')}
+                  </Typography>
+                  <Typography sx={{ fontSize: '0.68rem', color: MUTED, fontWeight: 500 }}>
+                    {t('protectCrop')}
+                  </Typography>
+                </Box>
               </Box>
             </Box>
-            <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
-              {(!latest || (latest.temperature < 28 && latest.humidity < 60)) ? (
-                <Box sx={{ display: 'flex', gap: 1.5 }}>
-                  <Box sx={{ width: 36, height: 36, borderRadius: '10px', bgcolor: alpha(ACCENT, 0.1), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <Typography sx={{ fontSize: '1.1rem' }}>👍</Typography>
-                  </Box>
-                  <Box>
-                    <Typography sx={{ fontSize: '0.88rem', fontWeight: 700, color: TEXT }}>{t('noPests')}</Typography>
-                    <Typography sx={{ fontSize: '0.75rem', color: MUTED, mt: 0.25, lineHeight: 1.4 }}>{t('noPestsSub')}</Typography>
+
+            <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+              {/* Card 1: Mustard Aphid / Cotton Sucking Pests */}
+              <Box sx={{ p: 1.5, borderRadius: '12px', bgcolor: alpha(AMBER, 0.05), border: `1px solid ${alpha(AMBER, 0.2)}` }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
+                  <Typography sx={{ fontSize: '0.78rem', fontWeight: 700, color: TEXT, display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                    <span>🌼</span> {ACTIVE_CROPS[2].name[lang] || ACTIVE_CROPS[2].name.en} (चेपा / Aphids)
+                  </Typography>
+                  <Box sx={{ px: 0.8, py: 0.2, borderRadius: '6px', bgcolor: alpha(AMBER, 0.12), border: `1px solid ${alpha(AMBER, 0.25)}` }}>
+                    <Typography sx={{ fontSize: '0.55rem', fontWeight: 700, color: AMBER, fontFamily: '"DM Mono", monospace' }}>
+                      {t('foliarEvening')}
+                    </Typography>
                   </Box>
                 </Box>
-              ) : (
-                <>
-                  {latest.temperature >= 28 && (
-                    <Box sx={{ display: 'flex', gap: 1.5 }}>
-                      <Box sx={{ width: 36, height: 36, borderRadius: '10px', bgcolor: alpha(ACCENT, 0.1), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <Typography sx={{ fontSize: '1.1rem' }}>🌿</Typography>
-                      </Box>
-                      <Box>
-                        <Typography sx={{ fontSize: '0.88rem', fontWeight: 700, color: TEXT }}>{t('neemOil')}</Typography>
-                        <Typography sx={{ fontSize: '0.75rem', color: MUTED, mt: 0.25, lineHeight: 1.4 }}>{t('neemAdvice')}</Typography>
-                      </Box>
-                    </Box>
-                  )}
-                  {latest.humidity >= 60 && (
-                    <Box sx={{ display: 'flex', gap: 1.5 }}>
-                      <Box sx={{ width: 36, height: 36, borderRadius: '10px', bgcolor: alpha(BLUE, 0.1), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <Typography sx={{ fontSize: '1.1rem' }}>💦</Typography>
-                      </Box>
-                      <Box>
-                        <Typography sx={{ fontSize: '0.88rem', fontWeight: 700, color: TEXT }}>{t('fungicide')}</Typography>
-                        <Typography sx={{ fontSize: '0.75rem', color: MUTED, mt: 0.25, lineHeight: 1.4 }}>{t('fungiAdvice')}</Typography>
-                      </Box>
-                    </Box>
-                  )}
-                </>
-              )}
+                <Typography sx={{ fontSize: '0.72rem', color: TEXT, lineHeight: 1.45 }}>
+                  {ACTIVE_CROPS[2].advice[lang] || ACTIVE_CROPS[2].advice.en}
+                </Typography>
+              </Box>
+
+              {/* Card 2: Chickpea Pod Borer Prevention */}
+              <Box sx={{ p: 1.5, borderRadius: '12px', bgcolor: alpha(PURPLE, 0.05), border: `1px solid ${alpha(PURPLE, 0.18)}` }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
+                  <Typography sx={{ fontSize: '0.78rem', fontWeight: 700, color: TEXT, display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                    <span>🌿</span> {ACTIVE_CROPS[4].name[lang] || ACTIVE_CROPS[4].name.en} (इल्ली / Pod Borer)
+                  </Typography>
+                  <Box sx={{ px: 0.8, py: 0.2, borderRadius: '6px', bgcolor: alpha(PURPLE, 0.12), border: `1px solid ${alpha(PURPLE, 0.25)}` }}>
+                    <Typography sx={{ fontSize: '0.55rem', fontWeight: 700, color: PURPLE, fontFamily: '"DM Mono", monospace' }}>
+                      {t('rootZone')}
+                    </Typography>
+                  </Box>
+                </Box>
+                <Typography sx={{ fontSize: '0.72rem', color: TEXT, lineHeight: 1.45 }}>
+                  {ACTIVE_CROPS[4].advice[lang] || ACTIVE_CROPS[4].advice.en}
+                </Typography>
+              </Box>
+
+              {/* Protocol Badge */}
+              <Box sx={{ p: 1, borderRadius: '8px', bgcolor: alpha(ACCENT, 0.06), borderLeft: `3px solid ${ACCENT}` }}>
+                <Typography sx={{ fontSize: '0.66rem', color: TEXT, lineHeight: 1.4 }}>
+                  <strong>⏱️ {t('timing')}:</strong> {lang === 'hi' ? 'दवाइयों का छिड़काव हमेशा शाम 4 से 6 बजे के बीच करें ताकि मधुमक्खियों को नुकसान न हो।' : lang === 'gu' ? 'દવાનો છંટકાવ હંમેશા સાંજે 4 થી 6 વાગ્યા વચ્ચે કરો જેથી મધમાખીને નુકસાન ન થાય.' : lang === 'mr' ? 'औषध फवारणी नेहमी दुपारी 4 ते 6 दरम्यान करा जेणेकरून मधमाशांचे रक्षण होईल.' : 'Always spray in late afternoon (4-6 PM) to protect beneficial pollinators.'}
+                </Typography>
+              </Box>
             </Box>
           </Box>
 

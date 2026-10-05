@@ -19,6 +19,8 @@ export interface DashboardOverview {
   recentReadings: SensorReading[];
   summary: DashboardSummary;
   generatedAt: Date;
+  isOffline?: boolean;
+  cachedAt?: Date;
 }
 
 interface DashboardOverviewResponse {
@@ -169,28 +171,147 @@ const generateMockOverview = (): DashboardOverview => {
   };
 };
 
+export const CACHE_KEY_OVERVIEW = 'fertobot_overview_cache_v2';
+export const CACHE_KEY_HISTORY  = 'fertobot_entries_history_v2';
+
+export const saveOverviewToCache = (overview: DashboardOverview): void => {
+  try {
+    const payload = {
+      ...overview,
+      cachedAt: new Date().toISOString(),
+    };
+    localStorage.setItem(CACHE_KEY_OVERVIEW, JSON.stringify(payload));
+  } catch (err) {
+    console.warn('Failed to save overview to cache', err);
+  }
+};
+
+export const saveReadingToHistory = (reading: SensorReading): void => {
+  try {
+    const existingStr = localStorage.getItem(CACHE_KEY_HISTORY);
+    const existing: SensorReading[] = existingStr ? JSON.parse(existingStr) : [];
+    const updated = [
+      reading,
+      ...existing.filter((item) => {
+        const t1 = new Date(item.timestamp).getTime();
+        const t2 = new Date(reading.timestamp).getTime();
+        return Math.abs(t1 - t2) > 60000;
+      }),
+    ].slice(0, 50);
+    localStorage.setItem(CACHE_KEY_HISTORY, JSON.stringify(updated));
+  } catch (err) {
+    console.warn('Failed to save reading history', err);
+  }
+};
+
+export const getOfflineEntriesHistory = (): SensorReading[] => {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY_HISTORY);
+    if (!raw) return [];
+    const parsed: SensorReading[] = JSON.parse(raw);
+    return parsed.map((item) => ({
+      ...item,
+      timestamp: toDate(item.timestamp),
+    }));
+  } catch {
+    return [];
+  }
+};
+
+export const getCachedOverview = (): DashboardOverview | null => {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY_OVERVIEW);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || !Array.isArray(parsed.probes) || !Array.isArray(parsed.recentReadings)) {
+      return null;
+    }
+
+    return {
+      probes: parsed.probes.map((p: Record<string, unknown>) => ({
+        ...p,
+        lastActive: toDate(p.lastActive),
+        currentReading: p.currentReading
+          ? normalizeReading(p.currentReading as Record<string, unknown>)
+          : undefined,
+      })),
+      alerts: (parsed.alerts || []).map((a: Record<string, unknown>) => normalizeAlert(a)),
+      recentReadings: parsed.recentReadings.map((r: Record<string, unknown>) => normalizeReading(r)),
+      summary: parsed.summary,
+      generatedAt: toDate(parsed.generatedAt),
+      cachedAt: parsed.cachedAt ? toDate(parsed.cachedAt) : toDate(parsed.generatedAt),
+      isOffline: true,
+    };
+  } catch (err) {
+    console.warn('Failed to load cached overview', err);
+    return null;
+  }
+};
+
 export const fetchDashboardOverview = async (forceRefresh = false): Promise<DashboardOverview> => {
+  // If browser is explicitly offline, immediately serve from offline cache
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    const cached = getCachedOverview();
+    if (cached) {
+      return cached;
+    }
+    const mock = generateMockOverview();
+    const offlineMock = { ...mock, isOffline: true, cachedAt: new Date() };
+    saveOverviewToCache(offlineMock);
+    return offlineMock;
+  }
+
   try {
     const url = forceRefresh ? '/api/dashboard/overview?refresh=true' : '/api/dashboard/overview';
-    const response = await fetch(url);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
+
+    const response = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
-      return generateMockOverview();
+      const cached = getCachedOverview();
+      if (cached) return cached;
+      const mock = generateMockOverview();
+      saveOverviewToCache(mock);
+      return mock;
     }
 
     const payload = (await response.json()) as DashboardOverviewResponse;
     if (!payload?.data?.probes) {
-      return generateMockOverview();
+      const cached = getCachedOverview();
+      if (cached) return cached;
+      const mock = generateMockOverview();
+      saveOverviewToCache(mock);
+      return mock;
     }
 
-    return {
+    const overview: DashboardOverview = {
       probes: payload.data.probes.map(normalizeProbe),
       alerts: payload.data.alerts.map(normalizeAlert),
       recentReadings: payload.data.recentReadings.map(normalizeReading),
       summary: payload.data.summary,
       generatedAt: toDate(payload.data.generatedAt),
+      isOffline: false,
     };
+
+    saveOverviewToCache(overview);
+    if (overview.recentReadings.length > 0) {
+      saveReadingToHistory(overview.recentReadings[0]);
+    }
+
+    return overview;
   } catch {
-    return generateMockOverview();
+    const cached = getCachedOverview();
+    if (cached) {
+      return cached;
+    }
+    const mock = generateMockOverview();
+    const offlineMock = { ...mock, isOffline: true, cachedAt: new Date() };
+    saveOverviewToCache(offlineMock);
+    if (offlineMock.recentReadings.length > 0) {
+      saveReadingToHistory(offlineMock.recentReadings[0]);
+    }
+    return offlineMock;
   }
 };

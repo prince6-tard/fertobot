@@ -170,6 +170,71 @@ export const translations: Translations = {
   aiCropAdvisory: { en: 'AI Crop Advisory', hi: 'AI फसल सलाहकार', gu: 'AI પાક સલાહકાર', mr: 'AI पीक सल्लागार' },
   aiCtaSub: { en: 'VOICE + CHAT ASSISTANT · TAP TO OPEN', hi: 'वॉइस एवं चैट असिस्टेंट · खोलने के लिए टैप करें', gu: 'વોઇસ + ચેટ આસિસ્ટન્ટ · ખોલવા માટે ટેપ કરો', mr: 'व्हॉइस + चॅट सहाय्यक · उघडण्यासाठी टॅप करा' },
 
+  // Offline Mode & Caching
+  offlineMode: { en: 'Offline Mode', hi: 'ऑफ़लाइन मोड', gu: 'ઑફલાઇન મોડ', mr: 'ऑफलाइन मोड' },
+  offlineBannerTitle: {
+    en: 'OFFLINE MODE · Showing Saved Farm Telemetry',
+    hi: 'ऑफ़लाइन मोड · सहेजा गया खेत डेटा प्रदर्शित है',
+    gu: 'ઑફલાઇન મોડ · સંગ્રહિત ખેતર ડેટા પ્રદર્શિત છે',
+    mr: 'ऑफलाइन मोड · जतन केलेला शेत डेटा दाखवला जात आहे',
+  },
+  offlineBannerDesc: {
+    en: 'No internet connection detected. You are viewing previously cached sensor entries, crop stages, and actionable advisories without disruption.',
+    hi: 'इंटरनेट कनेक्शन नहीं है। आप बिना रुकावट पूर्व सहेजे गए सेंसर आंकड़े, फसल अवस्था व कार्ययोग्य सलाह देख रहे हैं।',
+    gu: 'ઇન્ટરનેટ કનેક્શન નથી. તમે અગાઉ સંગ્રહ કરેલા સેન્સર આંકડા, પાક અવસ્થા અને ખેતી સલાહ જોઈ રહ્યા છો.',
+    mr: 'इंटरनेट जोडणी नाही. तुम्ही व्यत्ययाशिवाय पूर्वी जतन केलेल्या सेन्सर नोंदी, पिकांचे टप्पे आणि शेती सल्ला पाहत आहात.',
+  },
+  cachedAtLabel: { en: 'Cached at', hi: 'सहेजा गया', gu: 'સંગ્રહ સમય', mr: 'जतन वेळ' },
+  offlineEntriesCount: { en: 'Offline Entries Cached', hi: 'सहेजी गई प्रविष्टियां उपलब्ध', gu: 'સંગ્રહિત એન્ટ્રીઓ ઉપલબ્ધ', mr: 'जतन केलेल्या नोंदी उपलब्ध' },
+  onlineReconnected: {
+    en: 'Back Online · Syncing live telemetry…',
+    hi: 'इंटरनेट जुड़ गया · लाइव डेटा सिंक हो रहा है…',
+    gu: 'ઇન્ટરનેટ પુનઃસ્થાપિત · લાઇવ ડેટા સિંક થઈ રહ્યો છે…',
+    mr: 'इंटरनेट जोडले · थेट डेटा समक्रमित होत आहे…',
+  },
+  checkConnection: { en: 'Retry Connection', hi: 'पुनः प्रयास करें', gu: 'ફરી પ્રયાસ કરો', mr: 'पुन्हा प्रयत्न करा' },
+
+  // Actionable Crop Recommendations
+  actionableFertilizerPlan: {
+    en: 'Actionable Fertilizer Plan',
+    hi: 'फसल अनुसार व्यावहारिक खाद योजना',
+    gu: 'પાક અનુસાર વ્યવહારુ ખાતર આયોજન',
+    mr: 'पिकानुसार प्रत्यक्ष खत नियोजन',
+  },
+  pestAndSprayingSchedule: {
+    en: 'Actionable Pest & Spraying Schedule',
+    hi: 'कीटनाशक एवं स्प्रे शेड्यूल (सटीक मात्रा)',
+    gu: 'જંતુનાશક અને સ્પ્રે શિડ્યુલ (ચોક્કસ માત્રા)',
+    mr: 'कीटकनाशक व फवारणी वेळापत्रक (अचूक प्रमाण)',
+  },
+  dosage: { en: 'Dosage', hi: 'मात्रा (डोज़)', gu: 'માત્રા (ડોઝ)', mr: 'प्रमाण (डोस)' },
+  method: { en: 'Method', hi: 'विधि', gu: 'પદ્ધતિ', mr: 'पद्धत' },
+  timing: { en: 'Timing', hi: 'समय', gu: 'સમય', mr: 'वेळ' },
+  broadcastBeforeWater: {
+    en: 'Broadcast before irrigation',
+    hi: 'सिंचाई से ठीक पहले छिड़काव',
+    gu: 'પિયત પહેલાં પૂંખીને આપો',
+    mr: 'पाणी देण्यापूर्वी फेकून द्या',
+  },
+  dripFertigation: {
+    en: 'Drip fertigation',
+    hi: 'ड्रिप द्वारा दें',
+    gu: 'ડ્રિપ દ્વારા આપો',
+    mr: 'ठिबकद्वारे द्या',
+  },
+  foliarEvening: {
+    en: 'Foliar spray in late afternoon (4-6 PM)',
+    hi: 'शाम को पर्णीय छिड़काव (4-6 बजे)',
+    gu: 'સાંજના સમયે પાન પર છંટકાવ (4-6 વાગ્યે)',
+    mr: 'संध्याकाळी पानांवर फवारणी (4-6 वाजता)',
+  },
+  rootZone: {
+    en: 'Root zone placement',
+    hi: 'जड़ों के पास मिट्टी में डालें',
+    gu: 'મૂળ પાસે માટીમાં આપો',
+    mr: 'मुळांशी मातीत टाका',
+  },
+
   // Right Column Mini-widgets
   liveFeed: { en: 'Live Feed', hi: 'लाइव कैमरा फ़ीड', gu: 'લાઇવ કેમેરા ફીડ', mr: 'थेट कॅमेरा फीड' },
   recording: { en: 'RECORDING', hi: 'रिकॉर्डिंग जारी', gu: 'રેકોર્ડિંગ શરૂ', mr: 'रेकॉर्डिंग सुरू' },
