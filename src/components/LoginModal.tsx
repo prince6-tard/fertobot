@@ -8,8 +8,8 @@ interface LoginModalProps {
 }
 
 export const LoginModal: React.FC<LoginModalProps> = ({ onLogin }) => {
-  const [usernameInput, setUsernameInput] = useState('prince');
-  const [passwordInput, setPasswordInput] = useState('prince123');
+  const [usernameInput, setUsernameInput] = useState('');
+  const [passwordInput, setPasswordInput] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');

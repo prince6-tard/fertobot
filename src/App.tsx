@@ -40,11 +40,16 @@ import { VoiceAssistantView } from './pages/VoiceAssistantView';
 import { ReportsView } from './pages/ReportsView';
 import { FeatureStudioView } from './pages/FeatureStudioView';
 import { FarmProfileView } from './pages/FarmProfileView';
+import {
+  subscribeToCloudEvents,
+  fetchHistoricalEvents,
+  SyncPayload
+} from './services/syncService';
 
 export function App() {
   const [user, setUser] = useState<User | null>(() => {
     const saved = localStorage.getItem('fertobot_user');
-    return saved ? JSON.parse(saved) : INITIAL_USER;
+    return saved ? JSON.parse(saved) : null;
   });
 
   const [activeTab, setActiveTab] = useState<string>('dashboard');
@@ -90,6 +95,65 @@ export function App() {
   useEffect(() => {
     localStorage.setItem('fertobot_profile', JSON.stringify(farmProfile));
   }, [farmProfile]);
+
+  // Synchronize features and comments with Friend in real time & fetch updates
+  useEffect(() => {
+    // 1. Fetch any features/comments created while away
+    fetchHistoricalEvents().then((events) => {
+      if (events && events.length > 0) {
+        setCustomFeatures((prev) => {
+          let updated = [...prev];
+          for (const evt of events) {
+            if (evt.type === 'NEW_FEATURE' && evt.payload) {
+              if (!updated.some((f) => f.id === evt.payload.id)) {
+                updated = [evt.payload, ...updated];
+              }
+            } else if (evt.type === 'NEW_COMMENT' && evt.payload) {
+              const comment = evt.payload;
+              updated = updated.map((feat) => {
+                if (feat.id === comment.featureId) {
+                  const existing = feat.comments || [];
+                  if (!existing.some((c) => c.id === comment.id)) {
+                    return { ...feat, comments: [...existing, comment] };
+                  }
+                }
+                return feat;
+              });
+            }
+          }
+          return updated;
+        });
+      }
+    });
+
+    // 2. Subscribe to live stream for real-time collaboration
+    const unsubscribe = subscribeToCloudEvents((event: SyncPayload) => {
+      if (event.type === 'NEW_FEATURE' && event.payload) {
+        setCustomFeatures((prev) => {
+          if (prev.some((f) => f.id === event.payload.id)) return prev;
+          return [event.payload, ...prev];
+        });
+        setToastMessage(`🔔 ${event.senderName || 'Your friend'} added new feature: "${event.payload.title}"`);
+        setTimeout(() => setToastMessage(null), 5000);
+      } else if (event.type === 'NEW_COMMENT' && event.payload) {
+        const comment = event.payload;
+        setCustomFeatures((prev) =>
+          prev.map((feat) => {
+            if (feat.id === comment.featureId) {
+              const existing = feat.comments || [];
+              if (existing.some((c) => c.id === comment.id)) return feat;
+              return { ...feat, comments: [...existing, comment] };
+            }
+            return feat;
+          })
+        );
+        setToastMessage(`💬 ${event.senderName || 'Friend'} posted feedback on a feature.`);
+        setTimeout(() => setToastMessage(null), 4000);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   const computeHealth = (): number => {
     let score = 98;
@@ -278,6 +342,7 @@ export function App() {
             <FeatureStudioView
               customFeatures={customFeatures}
               setCustomFeatures={setCustomFeatures}
+              user={user}
             />
           )}
 

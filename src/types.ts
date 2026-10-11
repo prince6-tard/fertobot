@@ -148,6 +148,17 @@ export interface ChatMessage {
   category?: 'telemetry' | 'fertilizer' | 'irrigation' | 'pest';
 }
 
+export interface FeatureComment {
+  id: string;
+  featureId: string;
+  authorId: string;
+  authorName: string;
+  authorRole: string;
+  authorAvatar?: string;
+  text: string;
+  createdAt: string;
+}
+
 // Custom Dynamic Feature typed by the user!
 export interface CustomFeature {
   id: string;
@@ -157,6 +168,12 @@ export interface CustomFeature {
   status: 'live' | 'building' | 'concept';
   priority: 'Must-Have' | 'Game-Changer' | 'Enhancement';
   createdAt: string;
+  createdBy?: {
+    id: string;
+    name: string;
+    role: string;
+    avatar?: string;
+  };
   pinnedToDashboard: boolean;
   widgetType: 'toggle_switch' | 'metric_gauge' | 'action_slider' | 'schedule_timer' | 'ai_scanner';
   currentValue: number | boolean | string;
@@ -164,6 +181,7 @@ export interface CustomFeature {
   metricLabel?: string;
   summary: string;
   interactiveOptions?: string[];
+  comments?: FeatureComment[];
 }
 
 export interface FarmProfile {

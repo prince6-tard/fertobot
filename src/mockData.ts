@@ -458,13 +458,41 @@ export const INITIAL_CUSTOM_FEATURES: CustomFeature[] = [
     status: 'live',
     priority: 'Game-Changer',
     createdAt: '2026-10-10',
+    createdBy: {
+      id: 'PRINCE-01',
+      name: 'Prince',
+      role: 'Head Farmer & Lead',
+      avatar: '👨‍🌾'
+    },
     pinnedToDashboard: true,
     widgetType: 'action_slider',
     currentValue: 78,
     unit: '% Payload Capacity',
     metricLabel: 'Drone Battery: 88% | Altitude: 2.5m | Speed: 14 km/h',
     summary: 'Automates DJI Agras & Krishi drone waypoint missions. Synchronizes spraying precisely with low-wind hours and sensor pest hotspot coordinates.',
-    interactiveOptions: ['Launch Route A (North)', 'Calibrate Nozzle Flow', 'Return to Charging Pad']
+    interactiveOptions: ['Launch Route A (North)', 'Calibrate Nozzle Flow', 'Return to Charging Pad'],
+    comments: [
+      {
+        id: 'CMT-1',
+        featureId: 'FEAT-DRONE-01',
+        authorId: 'FRIEND-02',
+        authorName: 'Friend',
+        authorRole: 'Co-Farmer / Agronomist',
+        authorAvatar: '🌾',
+        text: 'Great feature Prince! Can we also add wind speed threshold so the drone halts if wind exceeds 15 km/h?',
+        createdAt: '10 Oct, 04:30 PM'
+      },
+      {
+        id: 'CMT-2',
+        featureId: 'FEAT-DRONE-01',
+        authorId: 'PRINCE-01',
+        authorName: 'Prince',
+        authorRole: 'Head Farmer & Lead',
+        authorAvatar: '👨‍🌾',
+        text: 'Added that check to the autopilot! It auto-delays launch if gust velocity is high.',
+        createdAt: '10 Oct, 05:15 PM'
+      }
+    ]
   },
   {
     id: 'FEAT-MANDI-02',
@@ -474,13 +502,31 @@ export const INITIAL_CUSTOM_FEATURES: CustomFeature[] = [
     status: 'live',
     priority: 'Must-Have',
     createdAt: '2026-10-10',
+    createdBy: {
+      id: 'FRIEND-02',
+      name: 'Friend',
+      role: 'Co-Farmer / Agronomist',
+      avatar: '🌾'
+    },
     pinnedToDashboard: true,
     widgetType: 'metric_gauge',
     currentValue: '₹2,640',
     unit: '/ Quintal (Wheat)',
     metricLabel: 'Varanasi Mandi: +₹65 (2.5%) today | Highest: ₹2,710',
     summary: 'Direct e-NAM API feed displaying wholesale market rates across your 5 nearest APMC grain and vegetable mandis with dynamic harvest profit projection.',
-    interactiveOptions: ['Varanasi APMC', 'Kanpur Mandi', 'Indore Market', 'Azamgarh Yard']
+    interactiveOptions: ['Varanasi APMC', 'Kanpur Mandi', 'Indore Market', 'Azamgarh Yard'],
+    comments: [
+      {
+        id: 'CMT-3',
+        featureId: 'FEAT-MANDI-02',
+        authorId: 'PRINCE-01',
+        authorName: 'Prince',
+        authorRole: 'Head Farmer & Lead',
+        authorAvatar: '👨‍🌾',
+        text: 'Very helpful. Let us connect Azamgarh and Jaunpur APMC yards as well.',
+        createdAt: '11 Oct, 11:20 AM'
+      }
+    ]
   },
   {
     id: 'FEAT-VISION-03',
@@ -490,13 +536,20 @@ export const INITIAL_CUSTOM_FEATURES: CustomFeature[] = [
     status: 'live',
     priority: 'Must-Have',
     createdAt: '2026-10-11',
+    createdBy: {
+      id: 'PRINCE-01',
+      name: 'Prince',
+      role: 'Head Farmer & Lead',
+      avatar: '👨‍🌾'
+    },
     pinnedToDashboard: false,
     widgetType: 'ai_scanner',
     currentValue: 98.4,
     unit: '% Health Confidence',
     metricLabel: 'Zero Leaf Rust detected | Mild Nitrogen Chlorosis on Lower Leaf Nodes',
     summary: 'Neural network model trained on 150,000+ crop foliage images. Point your phone camera or upload a leaf photo to diagnose bacterial, fungal, or viral pathogen damage.',
-    interactiveOptions: ['Upload Leaf Photo', 'Run Realtime Scan', 'Generate Treatment Plan']
+    interactiveOptions: ['Upload Leaf Photo', 'Run Realtime Scan', 'Generate Treatment Plan'],
+    comments: []
   },
   {
     id: 'FEAT-SOLAR-04',
@@ -506,13 +559,20 @@ export const INITIAL_CUSTOM_FEATURES: CustomFeature[] = [
     status: 'live',
     priority: 'Game-Changer',
     createdAt: '2026-10-11',
+    createdBy: {
+      id: 'FRIEND-02',
+      name: 'Friend',
+      role: 'Co-Farmer / Agronomist',
+      avatar: '🌾'
+    },
     pinnedToDashboard: true,
     widgetType: 'toggle_switch',
     currentValue: true,
     unit: 'Peak Solar Tracking Active',
     metricLabel: 'Solar Yield: 4.8 kW | Grid Power Saved: 16.2 kWh today',
     summary: 'Coordinates your 7.5 HP solar irrigation pump with real-time PV generation curve so heavy irrigation runs for free without consuming grid electricity.',
-    interactiveOptions: ['Sun-Tracking Mode', 'Grid Backup Fallback', 'Battery Storage Priority']
+    interactiveOptions: ['Sun-Tracking Mode', 'Grid Backup Fallback', 'Battery Storage Priority'],
+    comments: []
   },
   {
     id: 'FEAT-CARBON-05',
@@ -522,13 +582,20 @@ export const INITIAL_CUSTOM_FEATURES: CustomFeature[] = [
     status: 'building',
     priority: 'Enhancement',
     createdAt: '2026-10-11',
+    createdBy: {
+      id: 'PRINCE-01',
+      name: 'Prince',
+      role: 'Head Farmer & Lead',
+      avatar: '👨‍🌾'
+    },
     pinnedToDashboard: false,
     widgetType: 'metric_gauge',
     currentValue: '1.42',
     unit: '% SOC Level',
     metricLabel: 'Credits Accrued: 18.5 Verified Green Credits (~$370 value)',
     summary: 'Calculates active humus accumulation and carbon capture index based on organic mulch, no-till practice, and NPK microbial balance.',
-    interactiveOptions: ['Export Carbon Audit', 'Connect Verra Registry', 'Simulate Compost Benefit']
+    interactiveOptions: ['Export Carbon Audit', 'Connect Verra Registry', 'Simulate Compost Benefit'],
+    comments: []
   }
 ];
 

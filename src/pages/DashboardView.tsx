@@ -23,7 +23,8 @@ import {
   ArrowUpRight,
   ShieldAlert,
   Sprout,
-  Check
+  Check,
+  MessageSquare
 } from 'lucide-react';
 
 interface DashboardViewProps {
@@ -429,33 +430,48 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
 
           <div className="grid md:grid-cols-3 gap-3.5">
-            {pinnedFeatures.map((feature) => (
-              <div
-                key={feature.id}
-                className="matte-card rounded-xl p-4 space-y-2 border-slate-800"
-              >
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">
-                    {feature.category}
-                  </span>
-                  <span className="text-xs font-mono font-bold text-emerald-400">
-                    {feature.currentValue} {feature.unit || ''}
-                  </span>
+            {pinnedFeatures.map((feature) => {
+              const author = feature.createdBy || { name: 'Prince', avatar: '👨‍🌾' };
+              const commentsCount = feature.comments?.length || 0;
+
+              return (
+                <div
+                  key={feature.id}
+                  onClick={() => onNavigateTab('features')}
+                  className="matte-card rounded-xl p-4 space-y-2 border-slate-800 hover:border-slate-700 transition-colors cursor-pointer group"
+                >
+                  <div className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">
+                        {feature.category}
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-mono">
+                        {author.avatar || '👨‍🌾'} {author.name}
+                      </span>
+                    </div>
+                    <span className="text-xs font-mono font-bold text-emerald-400">
+                      {feature.currentValue} {feature.unit || ''}
+                    </span>
+                  </div>
+
+                  <h3 className="text-xs font-bold text-white line-clamp-1 group-hover:text-emerald-300 transition-colors">
+                    {feature.title}
+                  </h3>
+
+                  <p className="text-[11px] text-slate-400 line-clamp-2 leading-relaxed">
+                    {feature.summary}
+                  </p>
+
+                  <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px] text-slate-400 font-mono">
+                    <span className="truncate max-w-[160px]">{feature.metricLabel}</span>
+                    <span className="flex items-center gap-1 text-blue-400 font-semibold shrink-0">
+                      <MessageSquare className="w-3 h-3" />
+                      <span>{commentsCount} comments</span>
+                    </span>
+                  </div>
                 </div>
-
-                <h3 className="text-xs font-bold text-white line-clamp-1">
-                  {feature.title}
-                </h3>
-
-                <p className="text-[11px] text-slate-400 line-clamp-2 leading-relaxed">
-                  {feature.summary}
-                </p>
-
-                <div className="pt-2 border-t border-slate-800/80 text-[10px] text-slate-400 font-mono truncate">
-                  {feature.metricLabel}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
