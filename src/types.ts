@@ -157,16 +157,17 @@ export interface FeatureComment {
   authorAvatar?: string;
   text: string;
   createdAt: string;
+  screenshot?: string;
 }
 
 // Custom Dynamic Feature typed by the user!
 export interface CustomFeature {
   id: string;
   title: string;
-  userPrompt: string; // The text typed by the user
-  category: 'Automation' | 'AI & Vision' | 'Drone & Robotics' | 'Irrigation' | 'Market & Mandi' | 'Soil Science' | 'IoT Hardware';
+  userPrompt: string; // The text typed by the user / explanation
+  category?: string;
   status: 'live' | 'building' | 'concept';
-  priority: 'Must-Have' | 'Game-Changer' | 'Enhancement';
+  priority?: string;
   createdAt: string;
   createdBy?: {
     id: string;
@@ -182,6 +183,7 @@ export interface CustomFeature {
   summary: string;
   interactiveOptions?: string[];
   comments?: FeatureComment[];
+  screenshot?: string;
 }
 
 export interface FarmProfile {

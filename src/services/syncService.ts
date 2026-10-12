@@ -13,6 +13,28 @@ export interface SyncPayload {
 }
 
 /**
+ * Converts a base64 data URL to a binary Blob for multipart/form-data upload
+ */
+export function dataURLtoBlob(dataurl: string): Blob | null {
+  try {
+    const parts = dataurl.split(',');
+    if (parts.length < 2) return null;
+    const mimeMatch = parts[0].match(/:(.*?);/);
+    const mime = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+    const bstr = atob(parts[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new Blob([u8arr], { type: mime });
+  } catch (err) {
+    console.warn('Error converting dataURL to Blob:', err);
+    return null;
+  }
+}
+
+/**
  * Sends an email notification to priyanshutiwari1010@gmail.com whenever a new feature is added
  */
 export async function sendFeatureEmailNotification(
@@ -20,35 +42,43 @@ export async function sendFeatureEmailNotification(
   user: User
 ): Promise<{ success: boolean; message: string }> {
   try {
-    const payload = {
-      name: `${user.name} (${user.id})`,
-      email: user.email || 'notification@fertobot.com',
-      _subject: `🌱 [FertoBot] New Feature Added by ${user.name}: "${feature.title}"`,
-      feature_title: feature.title,
-      author: `${user.name} (${user.role})`,
-      category: feature.category,
-      priority: feature.priority,
-      widget_type: feature.widgetType,
-      prompt_specification: feature.userPrompt,
-      summary: feature.summary,
-      created_at: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
-      system_note: 'This notification was automatically dispatched by FertoBot Modular Studio.',
-      app_url: typeof window !== 'undefined' ? window.location.href : 'https://fertobot.vercel.app'
-    };
+    const formData = new FormData();
+    formData.append('name', `${user.name} (${user.id})`);
+    formData.append('email', user.email || 'notification@fertobot.com');
+    formData.append(
+      '_subject',
+      `🌱 [FertoBot] Feature/Issue Reported by ${user.name}: "${feature.title}"`
+    );
+    formData.append('feature_title', feature.title);
+    formData.append('author', `${user.name} (${user.role})`);
+    formData.append('explanation_whats_wrong', feature.userPrompt || feature.summary);
+    formData.append('created_at', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }));
+    formData.append('system_note', 'This report was submitted from FertoBot Modular Studio.');
+    formData.append(
+      'app_url',
+      typeof window !== 'undefined' ? window.location.href : 'https://fertobot.vercel.app'
+    );
+
+    if (feature.screenshot) {
+      const blob = dataURLtoBlob(feature.screenshot);
+      if (blob) {
+        formData.append('attachment', blob, 'screenshot.jpg');
+        formData.append('has_screenshot', 'Yes (Attached as screenshot.jpg)');
+      }
+    }
 
     const response = await fetch(EMAIL_ENDPOINT, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
+        Accept: 'application/json'
       },
-      body: JSON.stringify(payload)
+      body: formData
     });
 
     const data = await response.json();
     return {
       success: true,
-      message: data.message || 'Notification email sent to priyanshutiwari1010@gmail.com'
+      message: data.message || 'Notification email sent with screenshot to priyanshutiwari1010@gmail.com'
     };
   } catch (err: any) {
     console.warn('Email dispatch notice:', err);
@@ -68,24 +98,36 @@ export async function sendCommentEmailNotification(
   user: User
 ): Promise<void> {
   try {
-    const payload = {
-      name: `${user.name} (${user.id})`,
-      email: user.email || 'notification@fertobot.com',
-      _subject: `💬 [FertoBot Feedback] ${user.name} commented on "${featureTitle}"`,
-      feature_title: featureTitle,
-      commenter: user.name,
-      comment_text: comment.text,
-      comment_date: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
-      app_url: typeof window !== 'undefined' ? window.location.href : 'https://fertobot.vercel.app'
-    };
+    const formData = new FormData();
+    formData.append('name', `${user.name} (${user.id})`);
+    formData.append('email', user.email || 'notification@fertobot.com');
+    formData.append(
+      '_subject',
+      `💬 [FertoBot Feedback] ${user.name} commented on "${featureTitle}"`
+    );
+    formData.append('feature_title', featureTitle);
+    formData.append('commenter', user.name);
+    formData.append('comment_text', comment.text);
+    formData.append('comment_date', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }));
+    formData.append(
+      'app_url',
+      typeof window !== 'undefined' ? window.location.href : 'https://fertobot.vercel.app'
+    );
+
+    if (comment.screenshot) {
+      const blob = dataURLtoBlob(comment.screenshot);
+      if (blob) {
+        formData.append('attachment', blob, 'comment_screenshot.jpg');
+        formData.append('has_screenshot', 'Yes (Attached as comment_screenshot.jpg)');
+      }
+    }
 
     await fetch(EMAIL_ENDPOINT, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
+        Accept: 'application/json'
       },
-      body: JSON.stringify(payload)
+      body: formData
     });
   } catch (err) {
     console.warn('Comment email dispatch notice:', err);

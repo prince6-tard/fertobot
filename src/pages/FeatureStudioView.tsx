@@ -1,25 +1,23 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { CustomFeature, FeatureComment, User } from '../types';
 import {
   Sparkles,
-  Plus,
   Pin,
   PinOff,
   Trash2,
   CheckCircle2,
-  Cpu,
-  Sliders,
-  Gauge,
-  ToggleRight,
-  ScanLine,
-  Zap,
   MessageSquare,
   Send,
   Mail,
   Radio,
   Clock,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Image as ImageIcon,
+  UploadCloud,
+  X,
+  Maximize2,
+  Paperclip
 } from 'lucide-react';
 import {
   publishFeatureToCloud,
@@ -34,94 +32,131 @@ interface FeatureStudioViewProps {
   user: User;
 }
 
+/**
+ * Compresses an image file in-browser to a lightweight base64 JPEG
+ * for ultra-fast cloud synchronization and email attachments (<80KB).
+ */
+function compressImage(file: File, maxWidth = 1000, quality = 0.75): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        } else {
+          resolve(e.target?.result as string);
+        }
+      };
+      img.onerror = () => reject(new Error('Image failed to load'));
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = () => reject(new Error('File read failed'));
+    reader.readAsDataURL(file);
+  });
+}
+
 export const FeatureStudioView: React.FC<FeatureStudioViewProps> = ({
   customFeatures,
   setCustomFeatures,
   user,
 }) => {
+  // New Feature Form State
   const [typedTitle, setTypedTitle] = useState('');
   const [typedPrompt, setTypedPrompt] = useState('');
-  const [category, setCategory] = useState<CustomFeature['category']>('AI & Vision');
-  const [priority, setPriority] = useState<CustomFeature['priority']>('Game-Changer');
-  const [widgetType, setWidgetType] = useState<CustomFeature['widgetType']>('action_slider');
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [filterCategory, setFilterCategory] = useState<string>('all');
+  const [screenshot, setScreenshot] = useState<string | null>(null);
+  const [isCompressing, setIsCompressing] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
-  // Comments state: open state per feature, input text per feature
+  // File input ref for main screenshot
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Comments state: open state, input text, and attached screenshot per feature
   const [openComments, setOpenComments] = useState<Record<string, boolean>>({});
   const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
+  const [commentScreenshots, setCommentScreenshots] = useState<Record<string, string | null>>({});
   const [isSendingComment, setIsSendingComment] = useState<Record<string, boolean>>({});
 
-  const quickIdeas = [
-    {
-      title: 'Satellite NDVI Vegetation Canopy Index',
-      prompt: 'integrate Sentinel-2 satellite infrared NDVI imaging to detect vegetation vigor from orbit',
-      category: 'AI & Vision' as const,
-      widgetType: 'metric_gauge' as const
-    },
-    {
-      title: 'Frost & Extreme Heat Early Warning Siren',
-      prompt: 'alert 6 hours before frost freeze event and automatically trigger warm mist sprinklers',
-      category: 'Automation' as const,
-      widgetType: 'toggle_switch' as const
-    },
-    {
-      title: 'Autonomous Drone Night Pest Patrol',
-      prompt: 'schedule autonomous thermal drone flights to scare wild boars and nilgai with strobe lights',
-      category: 'Drone & Robotics' as const,
-      widgetType: 'action_slider' as const
-    },
-    {
-      title: 'Smart Fertilizer Dosing Pump by Electric Conductivity',
-      prompt: 'automatically inject liquid NPK concentrate into drip line when EC falls below 1.2 dS/m',
-      category: 'Irrigation' as const,
-      widgetType: 'toggle_switch' as const
-    }
-  ];
+  // Lightbox / Zoom Modal State
+  const [zoomedImage, setZoomedImage] = useState<string | null>(null);
 
-  const handleApplyQuickIdea = (idea: typeof quickIdeas[0]) => {
-    setTypedTitle(idea.title);
-    setTypedPrompt(idea.prompt);
-    setCategory(idea.category);
-    setWidgetType(idea.widgetType);
+  // Search filter
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // Handle main screenshot file selection
+  const handleScreenshotChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setIsCompressing(true);
+      const compressed = await compressImage(file);
+      setScreenshot(compressed);
+    } catch (err) {
+      console.error('Failed to compress image:', err);
+    } finally {
+      setIsCompressing(false);
+      // Reset input value so re-selecting same file triggers onChange
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
   };
 
+  // Handle drag & drop screenshot
+  const handleDropScreenshot = async (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files?.[0];
+    if (!file || !file.type.startsWith('image/')) return;
+
+    try {
+      setIsCompressing(true);
+      const compressed = await compressImage(file);
+      setScreenshot(compressed);
+    } catch (err) {
+      console.error('Failed to process dropped image:', err);
+    } finally {
+      setIsCompressing(false);
+    }
+  };
+
+  // Handle comment screenshot attachment
+  const handleCommentScreenshotChange = async (featureId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const compressed = await compressImage(file, 800, 0.7);
+      setCommentScreenshots((prev) => ({ ...prev, [featureId]: compressed }));
+    } catch (err) {
+      console.error('Failed to process comment image:', err);
+    }
+  };
+
+  // Submit New Feature
   const handleCreateFeature = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!typedTitle.trim()) return;
 
-    setIsGenerating(true);
-
-    let initialVal: any = 75;
-    let unit = '% Optimal';
-    let metricLabel = 'System Status: Active & Operational';
-    let options = ['Run Diagnostic Test', 'Calibrate Sensor', 'View Sub-Log'];
-
-    if (widgetType === 'toggle_switch') {
-      initialVal = true;
-      unit = 'Enabled';
-      metricLabel = 'Active Automated Loop';
-      options = ['Auto-Trigger On Event', 'Manual Override', 'Audit Trail'];
-    } else if (widgetType === 'metric_gauge') {
-      initialVal = '₹2,850';
-      unit = 'Current Index';
-      metricLabel = 'Confidence Score: 96.2%';
-      options = ['Refresh Live Feed', 'Export History', 'Alert Rules'];
-    } else if (widgetType === 'ai_scanner') {
-      initialVal = 99.1;
-      unit = '% Health Rating';
-      metricLabel = 'Neural Model v4.1 Synced';
-      options = ['Trigger Optical Scan', 'Upload New Image', 'Generate Prescription'];
-    }
+    setIsSubmitting(true);
 
     const newFeat: CustomFeature = {
       id: `FEAT-${Date.now()}`,
       title: typedTitle.trim(),
       userPrompt: typedPrompt.trim() || typedTitle.trim(),
-      category,
+      category: 'Feature Request',
       status: 'live',
-      priority,
+      priority: 'Must-Have',
       createdAt: new Date().toISOString().split('T')[0],
       createdBy: {
         id: user.id,
@@ -130,29 +165,33 @@ export const FeatureStudioView: React.FC<FeatureStudioViewProps> = ({
         avatar: user.avatar || (user.id.includes('PRINCE') ? '👨‍🌾' : '🌾')
       },
       pinnedToDashboard: true,
-      widgetType,
-      currentValue: initialVal,
-      unit,
-      metricLabel,
-      summary: `User-defined smart feature: "${typedPrompt || typedTitle}". Created by ${user.name} and synchronized across FertoBot.`,
-      interactiveOptions: options,
-      comments: []
+      widgetType: 'toggle_switch',
+      currentValue: true,
+      unit: 'Active',
+      metricLabel: 'Report Logged & Monitored',
+      summary: typedPrompt.trim() || `Reported by ${user.name}: "${typedTitle.trim()}"`,
+      interactiveOptions: ['Acknowledge Report', 'Investigate', 'Mark Resolved'],
+      comments: [],
+      screenshot: screenshot || undefined
     };
 
     // 1. Update local state
     setCustomFeatures((prev) => [newFeat, ...prev]);
-    setIsGenerating(false);
-    setTypedTitle('');
-    setTypedPrompt('');
 
     // 2. Broadcast to Friend via Cloud Pub/Sub
     publishFeatureToCloud(newFeat, user);
 
-    // 3. Dispatch Email to priyanshutiwari1010@gmail.com
+    // 3. Dispatch Email to priyanshutiwari1010@gmail.com with screenshot
     sendFeatureEmailNotification(newFeat, user);
 
-    setNotice(`Feature "${newFeat.title}" instantiated, synced to friend, and emailed to priyanshutiwari1010@gmail.com.`);
-    setTimeout(() => setNotice(null), 5000);
+    // Reset Form
+    setTypedTitle('');
+    setTypedPrompt('');
+    setScreenshot(null);
+    setIsSubmitting(false);
+
+    setNotice(`Feature "${newFeat.title}" created, synced live to your friend, and emailed with screenshot to priyanshutiwari1010@gmail.com.`);
+    setTimeout(() => setNotice(null), 6000);
   };
 
   const togglePin = (id: string) => {
@@ -165,12 +204,6 @@ export const FeatureStudioView: React.FC<FeatureStudioViewProps> = ({
     setCustomFeatures((prev) => prev.filter((f) => f.id !== id));
   };
 
-  const handleWidgetValueChange = (id: string, val: any) => {
-    setCustomFeatures((prev) =>
-      prev.map((f) => (f.id === id ? { ...f, currentValue: val } : f))
-    );
-  };
-
   const toggleComments = (featureId: string) => {
     setOpenComments((prev) => ({
       ...prev,
@@ -178,10 +211,13 @@ export const FeatureStudioView: React.FC<FeatureStudioViewProps> = ({
     }));
   };
 
+  // Submit Feedback / Comment on existing feature
   const handleAddComment = async (featureId: string, featureTitle: string, e: React.FormEvent) => {
     e.preventDefault();
     const commentText = (commentInputs[featureId] || '').trim();
-    if (!commentText) return;
+    const commentScreenshot = commentScreenshots[featureId] || null;
+
+    if (!commentText && !commentScreenshot) return;
 
     setIsSendingComment((prev) => ({ ...prev, [featureId]: true }));
 
@@ -192,8 +228,9 @@ export const FeatureStudioView: React.FC<FeatureStudioViewProps> = ({
       authorName: user.name,
       authorRole: user.role,
       authorAvatar: user.avatar || (user.id.includes('PRINCE') ? '👨‍🌾' : '🌾'),
-      text: commentText,
-      createdAt: 'Just now'
+      text: commentText || 'Attached screenshot explanation.',
+      createdAt: 'Just now',
+      screenshot: commentScreenshot || undefined
     };
 
     // Update local feature comments
@@ -209,21 +246,28 @@ export const FeatureStudioView: React.FC<FeatureStudioViewProps> = ({
       })
     );
 
-    // Clear comment input
+    // Clear comment inputs
     setCommentInputs((prev) => ({ ...prev, [featureId]: '' }));
+    setCommentScreenshots((prev) => ({ ...prev, [featureId]: null }));
     setIsSendingComment((prev) => ({ ...prev, [featureId]: false }));
 
-    // Sync to cloud topic and notify via email
+    // Sync to cloud topic and notify via email (with screenshot)
     publishCommentToCloud(newComment, featureTitle, user);
     sendCommentEmailNotification(newComment, featureTitle, user);
 
-    setNotice(`Comment added and synced to cloud discussion.`);
-    setTimeout(() => setNotice(null), 3000);
+    setNotice(`Feedback on "${featureTitle}" synced and emailed with screenshot to priyanshutiwari1010@gmail.com.`);
+    setTimeout(() => setNotice(null), 4000);
   };
 
-  const filtered = customFeatures.filter(
-    (f) => filterCategory === 'all' || f.category === filterCategory
-  );
+  const filteredFeatures = customFeatures.filter((f) => {
+    if (!searchTerm.trim()) return true;
+    const term = searchTerm.toLowerCase();
+    return (
+      f.title.toLowerCase().includes(term) ||
+      (f.userPrompt && f.userPrompt.toLowerCase().includes(term)) ||
+      (f.createdBy && f.createdBy.name.toLowerCase().includes(term))
+    );
+  });
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
@@ -233,7 +277,7 @@ export const FeatureStudioView: React.FC<FeatureStudioViewProps> = ({
           <div className="flex items-center gap-2 flex-wrap mb-1.5">
             <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-slate-800 text-emerald-400 text-xs font-medium">
               <Sparkles className="w-3.5 h-3.5" />
-              <span>MODULAR FEATURE STUDIO</span>
+              <span>FEATURE & ISSUE STUDIO</span>
             </div>
             <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 text-xs font-mono">
               <Radio className="w-3 h-3 text-emerald-400 animate-pulse" />
@@ -241,15 +285,16 @@ export const FeatureStudioView: React.FC<FeatureStudioViewProps> = ({
             </div>
             <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-800/80 text-slate-300 text-[11px] font-mono">
               <Mail className="w-3 h-3 text-blue-400" />
-              <span>Email: priyanshutiwari1010@gmail.com</span>
+              <span>Alerts to: priyanshutiwari1010@gmail.com</span>
             </div>
           </div>
 
           <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
-            Add Any Feature by Typing It
+            Feature Requests & Screenshot Feedback
           </h1>
           <p className="text-xs text-slate-400 max-w-xl leading-relaxed mt-1">
-            Type any capability in plain text. Features instantly appear on your screen and your friend's screen in real time, with notifications sent to your email.
+            Add any feature heading, explain what's wrong or what's needed, and upload screenshots.
+            When your friend uploads or comments, an instant email alert is sent to your inbox.
           </p>
         </div>
 
@@ -273,18 +318,20 @@ export const FeatureStudioView: React.FC<FeatureStudioViewProps> = ({
         </div>
       </div>
 
+      {/* Notice Banner */}
       {notice && (
-        <div className="p-3.5 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2 animate-fadeIn">
+        <div className="p-3.5 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2 animate-fadeIn shadow-lg">
           <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
           <span>{notice}</span>
         </div>
       )}
 
-      {/* Creation Form Box */}
-      <div className="matte-card rounded-2xl p-5 sm:p-6 space-y-4">
-        <div className="flex items-center justify-between">
+      {/* Clean Feature Creation Form */}
+      <div className="matte-card rounded-2xl p-5 sm:p-6 space-y-4 border border-slate-800 shadow-xl">
+        <div className="flex items-center justify-between pb-1 border-b border-slate-800/80">
           <h2 className="text-sm font-bold text-white flex items-center gap-2">
-            <span>Type New Feature Specification</span>
+            <Sparkles className="w-4 h-4 text-emerald-400" />
+            <span>Add Feature / Report What's Wrong</span>
           </h2>
           <span className="text-[11px] text-slate-400 font-mono">
             Posting as: <strong className="text-emerald-400">{user.name}</strong> ({user.role})
@@ -292,181 +339,190 @@ export const FeatureStudioView: React.FC<FeatureStudioViewProps> = ({
         </div>
 
         <form onSubmit={handleCreateFeature} className="space-y-4">
-          <div className="grid md:grid-cols-12 gap-3.5">
-            <div className="md:col-span-6">
-              <label className="block text-xs font-medium text-slate-300 mb-1">
-                Feature Name / Title
-              </label>
-              <input
-                type="text"
-                value={typedTitle}
-                onChange={(e) => setTypedTitle(e.target.value)}
-                placeholder="e.g. Drone Precision Spraying"
-                className="w-full px-3.5 py-2 matte-input rounded-xl text-xs"
-                required
-              />
-            </div>
-
-            <div className="md:col-span-3">
-              <label className="block text-xs font-medium text-slate-300 mb-1">Category</label>
-              <select
-                value={category}
-                onChange={(e) => setCategory(e.target.value as any)}
-                className="w-full px-3 py-2 bg-[#0D131A] border border-slate-800 rounded-xl text-xs text-white"
-              >
-                <option value="AI & Vision">AI & Vision</option>
-                <option value="Automation">Automation</option>
-                <option value="Drone & Robotics">Drone & Robotics</option>
-                <option value="Irrigation">Irrigation</option>
-                <option value="Market & Mandi">Market & Mandi</option>
-                <option value="Soil Science">Soil Science</option>
-                <option value="IoT Hardware">IoT Hardware</option>
-              </select>
-            </div>
-
-            <div className="md:col-span-3">
-              <label className="block text-xs font-medium text-slate-300 mb-1">Priority</label>
-              <select
-                value={priority}
-                onChange={(e) => setPriority(e.target.value as any)}
-                className="w-full px-3 py-2 bg-[#0D131A] border border-slate-800 rounded-xl text-xs text-white"
-              >
-                <option value="Must-Have">Must-Have</option>
-                <option value="Game-Changer">Game-Changer</option>
-                <option value="Enhancement">Enhancement</option>
-              </select>
-            </div>
+          {/* Feature Heading */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-200 mb-1.5">
+              Feature Heading / Issue Title <span className="text-rose-400">*</span>
+            </label>
+            <input
+              type="text"
+              value={typedTitle}
+              onChange={(e) => setTypedTitle(e.target.value)}
+              placeholder="e.g. Drone Camera Perimeter Glitch, Soil Salinity Graph, or Auto-Dosing Pump"
+              className="w-full px-3.5 py-2.5 bg-[#0D131A] border border-slate-800 focus:border-emerald-500 rounded-xl text-xs text-white placeholder-slate-500 outline-none transition-colors"
+              required
+            />
           </div>
 
+          {/* Comment / Explanation Section */}
           <div>
-            <label className="block text-xs font-medium text-slate-300 mb-1">
-              Description / Prompt (What should this feature do?)
+            <label className="block text-xs font-semibold text-slate-200 mb-1.5">
+              Comment / Explain What's Wrong or What's Needed
             </label>
             <textarea
               value={typedPrompt}
               onChange={(e) => setTypedPrompt(e.target.value)}
-              rows={2}
-              placeholder="e.g. Schedule autonomous drone spray missions when wind speed is under 10 km/h..."
-              className="w-full px-3.5 py-2 matte-input rounded-xl text-xs font-mono resize-none"
+              rows={3}
+              placeholder="Explain what's wrong with this feature, what steps reproduce it, or how you would like it improved..."
+              className="w-full px-3.5 py-2.5 bg-[#0D131A] border border-slate-800 focus:border-emerald-500 rounded-xl text-xs text-white placeholder-slate-500 resize-none outline-none transition-colors leading-relaxed"
             />
           </div>
 
+          {/* Screenshot Upload Section */}
           <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1.5">
-              Live Widget Interactive Type:
+            <label className="block text-xs font-semibold text-slate-200 mb-1.5 flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <ImageIcon className="w-3.5 h-3.5 text-blue-400" />
+                <span>Upload Screenshot of Feature / Issue</span>
+              </span>
+              <span className="text-[11px] text-slate-500 font-normal">PNG, JPG, WebP supported</span>
             </label>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {[
-                { id: 'action_slider', label: 'Action Slider', icon: Sliders },
-                { id: 'metric_gauge', label: 'Data Gauge', icon: Gauge },
-                { id: 'toggle_switch', label: 'Auto Switch', icon: ToggleRight },
-                { id: 'ai_scanner', label: 'Optical Scan', icon: ScanLine },
-              ].map((wt) => {
-                const Icon = wt.icon;
-                const isSelected = widgetType === wt.id;
-                return (
-                  <button
-                    key={wt.id}
-                    type="button"
-                    onClick={() => setWidgetType(wt.id as any)}
-                    className={`p-2.5 rounded-xl border text-left flex items-center gap-2 transition-colors ${
-                      isSelected
-                        ? 'bg-emerald-600/15 border-emerald-500/50 text-white'
-                        : 'bg-[#0D131A] border-slate-800 text-slate-400 hover:text-white'
-                    }`}
+
+            <input
+              type="file"
+              ref={fileInputRef}
+              accept="image/*"
+              onChange={handleScreenshotChange}
+              className="hidden"
+            />
+
+            {screenshot ? (
+              /* Screenshot Preview with Remove */
+              <div className="p-3 rounded-xl bg-[#0A0E13] border border-slate-800 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3 overflow-hidden">
+                  <div
+                    onClick={() => setZoomedImage(screenshot)}
+                    className="relative w-16 h-16 rounded-lg overflow-hidden border border-slate-700 bg-slate-900 shrink-0 cursor-pointer group"
+                    title="Click to zoom screenshot"
                   >
-                    <Icon className={`w-3.5 h-3.5 ${isSelected ? 'text-emerald-400' : 'text-slate-500'}`} />
-                    <span className="text-xs font-medium">{wt.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+                    <img
+                      src={screenshot}
+                      alt="Uploaded screenshot preview"
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                      <Maximize2 className="w-4 h-4 text-white" />
+                    </div>
+                  </div>
+                  <div className="text-xs">
+                    <div className="font-semibold text-emerald-400 flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>Screenshot Attached</span>
+                    </div>
+                    <div className="text-[11px] text-slate-400 mt-0.5">
+                      Ready to be sent with email notification to priyanshutiwari1010@gmail.com
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setZoomedImage(screenshot)}
+                      className="text-[11px] text-blue-400 hover:underline flex items-center gap-1 mt-1"
+                    >
+                      <Maximize2 className="w-3 h-3" />
+                      <span>View Full Image</span>
+                    </button>
+                  </div>
+                </div>
 
-          {/* Quick Idea Chips */}
-          <div className="pt-1">
-            <div className="text-[11px] text-slate-500 mb-1.5 flex items-center gap-1">
-              <Zap className="w-3 h-3 text-amber-400" />
-              <span>Or click a pre-set idea:</span>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {quickIdeas.map((idea, idx) => (
                 <button
-                  key={idx}
                   type="button"
-                  onClick={() => handleApplyQuickIdea(idea)}
-                  className="px-2.5 py-1 rounded-lg bg-[#0D131A] hover:bg-slate-800 border border-slate-800 text-[11px] text-slate-300 transition-colors flex items-center gap-1"
+                  onClick={() => setScreenshot(null)}
+                  className="p-2 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 text-xs flex items-center gap-1 transition-colors shrink-0"
                 >
-                  <Plus className="w-3 h-3 text-emerald-400" />
-                  <span>{idea.title}</span>
+                  <X className="w-4 h-4" />
+                  <span className="hidden sm:inline">Remove</span>
                 </button>
-              ))}
-            </div>
+              </div>
+            ) : (
+              /* Dropzone Upload Button */
+              <div
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={handleDropScreenshot}
+                onClick={() => fileInputRef.current?.click()}
+                className="p-6 rounded-xl border-2 border-dashed border-slate-800 hover:border-slate-700 hover:bg-slate-900/40 transition-colors cursor-pointer text-center group flex flex-col items-center justify-center gap-2"
+              >
+                <div className="w-10 h-10 rounded-full bg-slate-800/80 group-hover:bg-slate-800 flex items-center justify-center text-slate-400 group-hover:text-emerald-400 transition-colors">
+                  {isCompressing ? (
+                    <div className="w-4 h-4 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <UploadCloud className="w-5 h-5" />
+                  )}
+                </div>
+                <div>
+                  <div className="text-xs font-medium text-slate-300">
+                    {isCompressing ? 'Compressing image...' : 'Click to browse or drop screenshot here'}
+                  </div>
+                  <div className="text-[11px] text-slate-500 mt-0.5">
+                    Upload any screenshot explaining what's wrong with the feature
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
-          <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3">
+          {/* Submit Action Bar */}
+          <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-800/60">
             <div className="text-[11px] text-slate-400 flex items-center gap-1.5">
               <Mail className="w-3.5 h-3.5 text-blue-400" />
-              <span>Auto-emails <strong>priyanshutiwari1010@gmail.com</strong> on submission.</span>
+              <span>Will automatically email <strong>priyanshutiwari1010@gmail.com</strong> with screenshot.</span>
             </div>
 
             <button
               type="submit"
-              disabled={isGenerating || !typedTitle.trim()}
-              className="w-full sm:w-auto px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50"
+              disabled={isSubmitting || !typedTitle.trim() || isCompressing}
+              className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-colors disabled:opacity-50 shadow-lg shadow-emerald-950/50"
             >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>{isGenerating ? 'Synthesizing...' : 'Instantiate & Broadcast Feature'}</span>
+              <Send className="w-3.5 h-3.5" />
+              <span>{isSubmitting ? 'Sending & Syncing...' : 'Add Feature & Dispatch Mail'}</span>
             </button>
           </div>
         </form>
       </div>
 
-      {/* Feature Catalog Grid */}
+      {/* Features Catalog Grid */}
       <div className="space-y-4 pt-2">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-base font-bold text-white">Active Features Catalog</h2>
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
-            {['all', 'AI & Vision', 'Drone & Robotics', 'Market & Mandi', 'Automation', 'Soil Science'].map((cat) => (
-              <button
-                key={cat}
-                onClick={() => setFilterCategory(cat)}
-                className={`px-2.5 py-1 rounded-lg text-xs transition-colors whitespace-nowrap ${
-                  filterCategory === cat
-                    ? 'bg-slate-800 text-white font-semibold'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                {cat === 'all' ? 'All' : cat}
-              </button>
-            ))}
+          <h2 className="text-base font-bold text-white flex items-center gap-2">
+            <span>Features & Feedback Catalog</span>
+            <span className="text-xs font-mono font-normal text-slate-400 bg-slate-800 px-2 py-0.5 rounded-full">
+              {filteredFeatures.length}
+            </span>
+          </h2>
+
+          <div className="w-full sm:w-64">
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search features or author..."
+              className="w-full px-3 py-1.5 bg-[#0D131A] border border-slate-800 focus:border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 outline-none"
+            />
           </div>
         </div>
 
         <div className="grid md:grid-cols-2 gap-4">
-          {filtered.map((feature) => {
+          {filteredFeatures.map((feature) => {
             const commentsCount = feature.comments?.length || 0;
             const isCommentsOpen = !!openComments[feature.id];
             const author = feature.createdBy || { name: 'Prince', role: 'Farmer', avatar: '👨‍🌾' };
+            const commentAttachedImage = commentScreenshots[feature.id];
 
             return (
               <div
                 key={feature.id}
-                className="matte-card rounded-2xl p-5 flex flex-col justify-between space-y-3 border border-slate-800"
+                className="matte-card rounded-2xl p-5 flex flex-col justify-between space-y-3 border border-slate-800 shadow-md hover:border-slate-700/80 transition-colors"
               >
                 <div>
+                  {/* Card Header */}
                   <div className="flex items-start justify-between gap-3 mb-2">
                     <div>
                       <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
-                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300">
-                          {feature.category}
-                        </span>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 font-mono">
-                          {feature.priority}
-                        </span>
                         <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-950/40 text-emerald-300 border border-emerald-500/20 font-mono flex items-center gap-1">
                           <span>{author.avatar || '👨‍🌾'}</span>
-                          <span>by {author.name}</span>
+                          <span>by {author.name} ({author.role})</span>
+                        </span>
+                        <span className="text-[10px] text-slate-500 font-mono flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          <span>{feature.createdAt}</span>
                         </span>
                       </div>
                       <h3 className="text-sm font-bold text-white">{feature.title}</h3>
@@ -494,83 +550,31 @@ export const FeatureStudioView: React.FC<FeatureStudioViewProps> = ({
                     </div>
                   </div>
 
+                  {/* Feature Explanation */}
                   <p className="text-xs text-slate-300 leading-relaxed mb-3">
-                    {feature.summary}
+                    {feature.userPrompt || feature.summary}
                   </p>
 
-                  {/* Interactive Widget Box */}
-                  <div className="p-3 rounded-xl bg-[#0A0E13] border border-slate-800 space-y-2 mb-3">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-slate-400 text-[11px] font-mono flex items-center gap-1">
-                        <Cpu className="w-3 h-3 text-emerald-400" />
-                        <span>Live Controller</span>
-                      </span>
-                      <span className="font-mono text-emerald-400 font-bold">
-                        {feature.currentValue} {feature.unit || ''}
-                      </span>
-                    </div>
-
-                    {feature.widgetType === 'action_slider' && (
-                      <input
-                        type="range"
-                        min="0"
-                        max="100"
-                        value={Number(feature.currentValue) || 50}
-                        onChange={(e) => handleWidgetValueChange(feature.id, Number(e.target.value))}
-                        className="w-full accent-emerald-500 h-1.5 bg-slate-800 rounded-lg cursor-pointer"
+                  {/* Attached Feature Screenshot (if any) */}
+                  {feature.screenshot && (
+                    <div className="mb-3 rounded-xl overflow-hidden border border-slate-800 bg-[#0A0E13] relative group">
+                      <img
+                        src={feature.screenshot}
+                        alt={`Screenshot for ${feature.title}`}
+                        className="w-full max-h-56 object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                        onClick={() => setZoomedImage(feature.screenshot!)}
                       />
-                    )}
-
-                    {feature.widgetType === 'toggle_switch' && (
-                      <div className="flex items-center justify-between pt-0.5">
-                        <span className="text-xs text-slate-300">Auto Trigger</span>
-                        <button
-                          onClick={() => handleWidgetValueChange(feature.id, !feature.currentValue)}
-                          className={`px-2.5 py-1 rounded text-xs font-semibold ${
-                            feature.currentValue ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-400'
-                          }`}
-                        >
-                          {feature.currentValue ? 'ENABLED' : 'DISABLED'}
-                        </button>
+                      <div className="absolute bottom-2 right-2 px-2 py-1 rounded-md bg-black/70 backdrop-blur text-[10px] text-white flex items-center gap-1 font-mono pointer-events-none">
+                        <Maximize2 className="w-3 h-3" />
+                        <span>Click to expand</span>
                       </div>
-                    )}
-
-                    {feature.widgetType === 'metric_gauge' && (
-                      <div className="text-[11px] text-slate-400 font-mono">
-                        {feature.metricLabel}
-                      </div>
-                    )}
-
-                    {feature.widgetType === 'ai_scanner' && (
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-slate-400">{feature.metricLabel}</span>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-emerald-400 font-mono">Ready</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Interactive actions & Comments trigger */}
-                <div className="space-y-2.5 pt-2 border-t border-slate-800/80">
-                  {feature.interactiveOptions && (
-                    <div className="flex flex-wrap gap-1.5">
-                      {feature.interactiveOptions.map((opt, i) => (
-                        <button
-                          key={i}
-                          onClick={() => {
-                            setNotice(`Action "${opt}" dispatched.`);
-                            setTimeout(() => setNotice(null), 2500);
-                          }}
-                          className="px-2 py-0.5 rounded bg-slate-800/70 hover:bg-slate-800 text-[11px] text-slate-300 transition-colors"
-                        >
-                          {opt}
-                        </button>
-                      ))}
                     </div>
                   )}
+                </div>
 
-                  {/* Comment option trigger bar */}
-                  <div className="pt-1 flex items-center justify-between text-xs">
+                {/* Card Footer: Comments Accordion Bar */}
+                <div className="space-y-2.5 pt-2 border-t border-slate-800/80">
+                  <div className="flex items-center justify-between text-xs">
                     <button
                       type="button"
                       onClick={() => toggleComments(feature.id)}
@@ -581,38 +585,40 @@ export const FeatureStudioView: React.FC<FeatureStudioViewProps> = ({
                       }`}
                     >
                       <MessageSquare className="w-3.5 h-3.5 text-blue-400" />
-                      <span>Feedback & Improvements</span>
+                      <span>Comments & Screenshot Reports</span>
                       <span className="px-1.5 py-0.2 rounded-full bg-slate-900 text-slate-300 text-[10px] font-mono ml-0.5">
                         {commentsCount}
                       </span>
                       {isCommentsOpen ? <ChevronUp className="w-3.5 h-3.5 ml-1" /> : <ChevronDown className="w-3.5 h-3.5 ml-1" />}
                     </button>
 
-                    <span className="text-[10px] text-slate-500 font-mono flex items-center gap-1">
-                      <Clock className="w-3 h-3" />
-                      <span>{feature.createdAt}</span>
-                    </span>
+                    {feature.screenshot && (
+                      <span className="text-[10px] text-emerald-400 font-mono flex items-center gap-1">
+                        <ImageIcon className="w-3 h-3" />
+                        <span>Has Screenshot</span>
+                      </span>
+                    )}
                   </div>
 
                   {/* Collapsible Comment Thread */}
                   {isCommentsOpen && (
                     <div className="p-3.5 rounded-xl bg-[#090D12] border border-slate-800 space-y-3 animate-fadeIn">
                       <div className="flex items-center justify-between text-xs pb-1 border-b border-slate-800">
-                        <span className="font-semibold text-slate-300">Feature Discussion & Improvements</span>
+                        <span className="font-semibold text-slate-300">Feature Discussion & Screenshot Reports</span>
                         <span className="text-[10px] text-slate-500 font-mono">Shared between Prince & Friend</span>
                       </div>
 
                       {/* Comment list */}
-                      <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                      <div className="space-y-2.5 max-h-56 overflow-y-auto pr-1">
                         {commentsCount === 0 ? (
                           <p className="text-[11px] text-slate-500 italic py-1">
-                            No improvement notes yet. Leave a suggestion below to refine this feature!
+                            No comments yet. Anyone can leave feedback or upload a screenshot below explaining what's wrong!
                           </p>
                         ) : (
                           feature.comments?.map((cmt) => (
                             <div
                               key={cmt.id}
-                              className="p-2.5 rounded-lg bg-[#0F161E] border border-slate-800/80 space-y-1 text-xs"
+                              className="p-2.5 rounded-lg bg-[#0F161E] border border-slate-800/80 space-y-1.5 text-xs"
                             >
                               <div className="flex items-center justify-between text-[11px]">
                                 <span className="font-semibold text-white flex items-center gap-1">
@@ -624,36 +630,97 @@ export const FeatureStudioView: React.FC<FeatureStudioViewProps> = ({
                                 </span>
                                 <span className="text-[10px] text-slate-500 font-mono">{cmt.createdAt}</span>
                               </div>
+
                               <p className="text-slate-300 text-xs leading-relaxed pl-4">
                                 {cmt.text}
                               </p>
+
+                              {/* Comment Screenshot Attachment (if any) */}
+                              {cmt.screenshot && (
+                                <div className="pl-4 pt-1">
+                                  <div
+                                    onClick={() => setZoomedImage(cmt.screenshot!)}
+                                    className="relative max-w-[200px] rounded-lg overflow-hidden border border-slate-700 bg-slate-900 cursor-pointer group"
+                                  >
+                                    <img
+                                      src={cmt.screenshot}
+                                      alt="Comment attachment"
+                                      className="w-full max-h-32 object-cover"
+                                    />
+                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                      <Maximize2 className="w-3.5 h-3.5 text-white" />
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           ))
                         )}
                       </div>
 
-                      {/* Add comment form */}
+                      {/* Add comment form with screenshot upload */}
                       <form
                         onSubmit={(e) => handleAddComment(feature.id, feature.title, e)}
-                        className="flex items-center gap-2 pt-1"
+                        className="space-y-2 pt-1 border-t border-slate-800/80"
                       >
-                        <input
-                          type="text"
-                          value={commentInputs[feature.id] || ''}
-                          onChange={(e) =>
-                            setCommentInputs((prev) => ({ ...prev, [feature.id]: e.target.value }))
-                          }
-                          placeholder={`Suggest an improvement as ${user.name}...`}
-                          className="flex-1 px-3 py-1.5 bg-[#0D131A] border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
-                        />
-                        <button
-                          type="submit"
-                          disabled={isSendingComment[feature.id] || !(commentInputs[feature.id] || '').trim()}
-                          className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-semibold flex items-center gap-1 transition-colors"
-                        >
-                          <Send className="w-3 h-3" />
-                          <span>Post</span>
-                        </button>
+                        {/* Comment Screenshot Preview (if selected) */}
+                        {commentAttachedImage && (
+                          <div className="p-2 rounded-lg bg-[#0F161E] border border-slate-700 flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <img
+                                src={commentAttachedImage}
+                                alt="Comment preview"
+                                className="w-10 h-10 object-cover rounded border border-slate-600"
+                              />
+                              <span className="text-[11px] text-slate-300">Screenshot attached to comment</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setCommentScreenshots((prev) => ({ ...prev, [feature.id]: null }))}
+                              className="text-slate-400 hover:text-rose-400 p-1"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        )}
+
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={commentInputs[feature.id] || ''}
+                            onChange={(e) =>
+                              setCommentInputs((prev) => ({ ...prev, [feature.id]: e.target.value }))
+                            }
+                            placeholder={`Explain what's wrong or suggest improvement as ${user.name}...`}
+                            className="flex-1 px-3 py-1.5 bg-[#0D131A] border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                          />
+
+                          {/* Screenshot upload button for comment */}
+                          <label
+                            title="Attach screenshot to comment"
+                            className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white cursor-pointer transition-colors shrink-0"
+                          >
+                            <Paperclip className="w-3.5 h-3.5" />
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => handleCommentScreenshotChange(feature.id, e)}
+                              className="hidden"
+                            />
+                          </label>
+
+                          <button
+                            type="submit"
+                            disabled={
+                              isSendingComment[feature.id] ||
+                              (!(commentInputs[feature.id] || '').trim() && !commentAttachedImage)
+                            }
+                            className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-semibold flex items-center gap-1 transition-colors shrink-0"
+                          >
+                            <Send className="w-3 h-3" />
+                            <span>Post</span>
+                          </button>
+                        </div>
                       </form>
                     </div>
                   )}
@@ -663,6 +730,39 @@ export const FeatureStudioView: React.FC<FeatureStudioViewProps> = ({
           })}
         </div>
       </div>
+
+      {/* Lightbox / Zoom Modal */}
+      {zoomedImage && (
+        <div
+          onClick={() => setZoomedImage(null)}
+          className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative max-w-4xl max-h-[90vh] bg-slate-900 border border-slate-700 rounded-2xl overflow-hidden shadow-2xl flex flex-col"
+          >
+            <div className="p-3 bg-slate-800/90 flex items-center justify-between border-b border-slate-700 text-xs">
+              <span className="font-semibold text-white flex items-center gap-1.5">
+                <ImageIcon className="w-4 h-4 text-emerald-400" />
+                <span>Feature Screenshot Preview</span>
+              </span>
+              <button
+                onClick={() => setZoomedImage(null)}
+                className="p-1 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-2 overflow-auto max-h-[calc(90vh-60px)] flex items-center justify-center bg-black/60">
+              <img
+                src={zoomedImage}
+                alt="Enlarged screenshot view"
+                className="max-w-full max-h-[80vh] object-contain rounded-lg"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
